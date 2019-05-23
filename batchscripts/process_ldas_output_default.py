@@ -43,7 +43,7 @@ if proc_incr==1:
 if proc_daily==1:
     io = LDAS_io('daily', exp, domain, root)
     #io.bin2netcdf(overwrite=True)
-    #io.bin2netcdf()
+    io.bin2netcdf()
     ### add zbar
     os.makedirs(io.paths.root +'/' + exp + '/output_postprocessed/',exist_ok=True)
     fn = io.paths.root +'/' + exp + '/output_postprocessed/daily_zbar_images.nc'
