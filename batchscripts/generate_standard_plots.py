@@ -20,9 +20,6 @@ from bat_pyldas.plotting import plot_RTMparams
 from pyldas.visualize.plots import plot_rtm_parameters
 #plot_rtm_parameters(exp, domain, root, outpath)
 
-from bat_pyldas.plotting import plot_increments_std
-plot_increments_std(exp, domain, root, outpath)
-
 from bat_pyldas.plotting import plot_waterstorage_std
 plot_waterstorage_std(exp, domain, root, outpath)
 
