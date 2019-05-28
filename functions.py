@@ -188,6 +188,50 @@ def calc_tau_and_lag1_autocor(self):
     # Save file to disk and loat it as xarray Dataset into the class variable space
     dataset.close()
 
+def calc_anomaly(Ser, method='moving_average', output='anomaly', longterm=False):
+
+    if (output=='climatology')&(longterm is True):
+        output = 'climSer'
+
+    xSer = Ser.dropna().copy()
+    if len(xSer) == 0:
+        return xSer
+
+    doys = xSer.index.dayofyear.values
+    doys[xSer.index.is_leap_year & (doys > 59)] -= 1
+    climSer = pd.Series(index=xSer.index)
+
+    if not method in ['harmonic','mean','moving_average','ma']:
+        logging.info('Unknown method: %s' % (method))
+        return climSer
+
+    if longterm is True:
+        if method=='harmonic':
+            clim = calc_clim_harmonic(xSer)
+        if method=='mean':
+            clim = calc_clim_harmonic(xSer, n=0)
+        if (method=='moving_average')|(method=='ma'):
+            clim = calc_clim_moving_average(xSer)
+        if output == 'climatology':
+            return clim
+        climSer[:] = clim[doys]
+
+    else:
+        years = xSer.index.year
+        for yr in np.unique(years):
+            if method == 'harmonic':
+                clim = calc_clim_harmonic(xSer[years == yr])
+            if method == 'mean':
+                clim = calc_clim_harmonic(xSer[years == yr], n=0)
+            if (method == 'moving_average') | (method == 'ma'):
+                clim = calc_clim_moving_average(xSer[years == yr])
+            climSer[years == yr] = clim[doys[years == yr]].values
+
+    if output == 'climSer':
+        return climSer
+
+    return xSer - climSer
+
 if __name__=='__main__':
     estimae_lag1_autocorr()
 
