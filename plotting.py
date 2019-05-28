@@ -38,7 +38,7 @@ def plot_catparams(exp, domain, root, outpath):
     cmin = None
     cmax = None
 
-    params = LDAS_io(exp=exp, domain=domain).read_params('catparam')
+    params = LDAS_io(exp=exp, domain=domain, root=root).read_params('catparam')
 
     for param in params:
 
@@ -60,7 +60,7 @@ def plot_RTMparams(exp, domain, root, outpath):
     cmin = None
     cmax = None
 
-    params = LDAS_io(exp=exp, domain=domain).read_params('RTMparam')
+    params = LDAS_io(exp=exp, domain=domain, root=root).read_params('RTMparam')
 
     for param in params:
 
