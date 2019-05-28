@@ -19,13 +19,11 @@ from pyldas.grids import EASE2
 
 from pyldas.interface import LDAS_io
 
-from myprojects.timeseries import calc_anomaly
-
-from pyldas_plots.functions import estimate_lag1_autocorr
-from pyldas_plots.functions import estimate_tau
-from pyldas_plots.functions import lag1_autocorr_from_numpy_array
-from pyldas_plots.functions import obs_M09_to_M36
-from pyldas_plots.functions import setup_grid_grid_for_plot
+from bat_pyldas.functions import estimate_lag1_autocorr
+from bat_pyldas.functions import estimate_tau
+from bat_pyldas.functions import lag1_autocorr_from_numpy_array
+from bat_pyldas.functions import obs_M09_to_M36
+from bat_pyldas.functions import setup_grid_grid_for_plot
 
 from scipy.interpolate import interp2d
 
@@ -94,6 +92,27 @@ def plot_increments_std(exp, domain, root, outpath):
     my_title='std(increments total water) (mm): m = %.2f, s = %.2f' % (np.nanmean(data),np.nanstd(data))
     figure_single_default(data=data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
                           llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title=my_title)
+
+def plot_increments(exp, domain, root, outpath, dti):
+
+    io = LDAS_io('incr', exp=exp, domain=domain, root=root)
+    [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
+    s1 = io.images.time.values
+    s2 = dti.values
+    timestamps = pd.Series(list(set(s1).intersection(set(s2)))).values
+    for timestamp in timestamps:
+        timestep = np.where(s1==timestamp)[0]
+        data = io.images['catdef'][timestep[0],:,:] + io.images['srfexc'][timestep[0],:,:] + io.images['rzexc'][timestep[0],:,:]
+        if np.nanmean(data)==0:
+            continue
+        data = data.where(data!=0)
+        # other parameter definitions
+        cmin = None
+        cmax = None
+        fname='incr_'+str(timestamp)[0:13]
+        my_title='increments (total water) (mm)'
+        figure_single_default(data=-data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                              llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title=my_title)
 
 def plot_increments_tp1_std(exp, domain, root, outpath):
 
@@ -487,6 +506,79 @@ def plot_innov_std_quatro(exp, domain, root, outpath):
                           llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,
                           plot_title=list(['innov std (Tb) H-Asc','innov std (Tb) H-Des','innov std (Tb) V-Asc','innov std (Tb) V-Des']))
 
+def plot_innov_quatro(exp, domain, root, outpath, dti):
+    #H-Asc
+    #H-Des
+    #V-Asc
+    #V-Des
+
+    # set up grid
+    io = LDAS_io('ObsFcstAna', exp=exp, domain=domain, root=root)
+    [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
+    s1 = io.images.time.values
+    s2 = dti.values
+    timestamps = pd.Series(list(set(s1).intersection(set(s2)))).values
+    for timestamp in timestamps:
+        timestep = np.where(s1==timestamp)[0]
+        data = io.images['obs_obs'][timestep[0],:,:,:] - io.images['obs_fcst'][timestep[0],:,:,:]
+        if np.nanmean(data)==0:
+            continue
+        # calculate variable to plot
+        data0 = obs_M09_to_M36(data[0,:,:])
+        data1 = obs_M09_to_M36(data[1,:,:])
+        data2 = obs_M09_to_M36(data[2,:,:])
+        data3 = obs_M09_to_M36(data[3,:,:])
+
+        # other parameter definitions
+        cmin = None
+        cmax = None
+        fname='innov_quatro_'+str(timestamp)[0:13]
+        data = list([data0,data1,data2,data3])
+        figure_quatro_default(data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                              llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,
+                              plot_title=list(['O-F (Tb in K) H-Asc','O-F (Tb in K) H-Des','O-F (Tb in K) V-Asc','O-F (Tb in K) V-Des']))
+
+def plot_kalman_gain(exp, domain, root, outpath, dti):
+    #H-Asc
+    #H-Des
+    #V-Asc
+    #V-Des
+
+    # set up grid
+    io = LDAS_io('ObsFcstAna', exp=exp, domain=domain, root=root)
+    [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
+    s1 = io.images.time.values
+    s2 = dti.values
+    timestamps = pd.Series(list(set(s1).intersection(set(s2)))).values
+    for timestamp in timestamps:
+        timestep = np.where(s1==timestamp)[0]
+        # OF
+        data = io.images['obs_obs'][timestep[0],:,:,:] - io.images['obs_fcst'][timestep[0],:,:,:]
+        if np.nanmean(data)==0:
+            continue
+        # calculate variable to plot
+        #tmp = data.sum(dim='species',skipna=True)
+        tmp = data[0,:,:]
+        tmp = tmp.where(tmp!=0)
+        OF = obs_M09_to_M36(tmp)
+        # incr
+        data = io.images['obs_ana'][timestep[0],:,:,:] - io.images['obs_fcst'][timestep[0],:,:,:]
+        if np.nanmean(data)==0:
+            continue
+        # calculate variable to plot
+        #tmp = data.sum(dim='species',skipna=True)
+        tmp = data[0,:,:]
+        tmp = tmp.where(tmp!=0)
+        incr = obs_M09_to_M36(tmp)
+        # other parameter definitions
+        cmin = 0
+        cmax = 1
+        fname='kalman_gain_'+str(timestamp)[0:13]
+        data = incr/OF
+        my_title='incr / (O - F) '
+        figure_single_default(data=data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                              llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title=my_title)
+
 def plot_innov_norm_std_quatro(exp, domain, root, outpath):
     #H-Asc
     #H-Des
@@ -617,7 +709,7 @@ def figure_single_default(data,lons,lats,cmin,cmax,llcrnrlat, urcrnrlat,
     figsize = (10, 10)
     cmap = 'jet'
     fontsize = 18
-    cbrange = (0, cmax)
+    cbrange = (cmin, cmax)
     f = plt.figure(num=None, figsize=figsize, dpi=90, facecolor='w', edgecolor='k')
     plt_img = np.ma.masked_invalid(data)
     m = Basemap(projection='mill', llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat, llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon, resolution='l')
