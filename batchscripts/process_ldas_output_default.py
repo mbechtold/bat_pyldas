@@ -11,8 +11,8 @@ from shutil import copyfile
 from shutil import move
 
 # set names
-root='/staging/leuven/stg_00024/OUTPUT/michelb'
-exp='SMAP_EASEv2_M09_SI_SMOSfw_DA'
+root='/scratch/leuven/329/vsc32924/output/'
+exp='INDONESIA_M09_v01_spinup'
 domain='SMAP_EASEv2_M09'
 
 # processing
@@ -42,8 +42,8 @@ if proc_incr==1:
 
 if proc_daily==1:
     io = LDAS_io('daily', exp, domain, root)
-    #io.bin2netcdf(overwrite=True)
-    io.bin2netcdf()
+    io.bin2netcdf(overwrite=True)
+    #io.bin2netcdf()
     ### add zbar
     os.makedirs(io.paths.root +'/' + exp + '/output_postprocessed/',exist_ok=True)
     fn = io.paths.root +'/' + exp + '/output_postprocessed/daily_zbar_images.nc'

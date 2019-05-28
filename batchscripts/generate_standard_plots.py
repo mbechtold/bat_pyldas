@@ -7,12 +7,12 @@ if platform.system() == 'Linux':
     matplotlib.use('TkAgg')
 
 
-root='/scratch/leuven/317/vsc31786/output'
-exp = 'SMAP_EASEv2_M09_SI_CLSM_SMOSfw_DA'
+root='/scratch/leuven/329/vsc32924/output'
+exp = 'INDONESIA_M09_v01_spinup'
 domain = 'SMAP_EASEv2_M09'
 
 
-outpath = '/staging/leuven/stg_00024/OUTPUT/michelb/FIG_tmp'
+outpath = '/vsc-hard-mounts/leuven-data/329/vsc32924/figures_temp'
 os.makedirs(outpath,exist_ok=True)
 
 from bat_pyldas.plotting import plot_catparams
