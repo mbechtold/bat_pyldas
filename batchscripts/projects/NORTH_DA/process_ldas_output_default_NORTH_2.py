@@ -3,7 +3,7 @@
 from pyldas.interface import LDAS_io
 import subprocess
 import os
-from bat_pyldas.functions import calc_tau_and_lag1_autocor
+from bat_pyldas.functions import *
 from netCDF4 import Dataset
 import numpy as np
 from bat_pyldas.functions import setup_grid_grid_for_plot
@@ -11,14 +11,19 @@ from shutil import copyfile
 from shutil import move
 
 # set names
-root='/scratch/leuven/329/vsc32924/output/'
-exp='INDONESIA_M09_v01_spinup2'
+root='/staging/leuven/stg_00024/OUTPUT/michelb'
+root='/scratch/leuven/317/vsc31786/output'
+exp='SMAP_EASEv2_M09_SMOSfw_DA'
+exp1='SMAP_EASEv2_M09_SI_CLSM_SMOSfw_DA'
+exp2='SMAP_EASEv2_M09_SI_SMOSfw_DA'
 domain='SMAP_EASEv2_M09'
 
 # processing
 proc_ObsFcstAna = 0
 proc_incr = 0
-proc_daily = 1
+proc_daily = 0
+proc_ensstd = 0
+proc_filter_diagnostics = 1
 proc_tau_and_lag1_autocor = 0
 
 
@@ -42,8 +47,8 @@ if proc_incr==1:
 
 if proc_daily==1:
     io = LDAS_io('daily', exp, domain, root)
-    io.bin2netcdf(overwrite=True)
-    #io.bin2netcdf()
+    #io.bin2netcdf(overwrite=True)
+    io.bin2netcdf()
     ### add zbar
     os.makedirs(io.paths.root +'/' + exp + '/output_postprocessed/',exist_ok=True)
     fn = io.paths.root +'/' + exp + '/output_postprocessed/daily_zbar_images.nc'
@@ -66,6 +71,21 @@ if proc_daily==1:
     ntime = io.images.time.values.__len__()
     ncks_command = "ncks -O -4 -L 4 --cnk_dmn time,%i --cnk_dmn lat,1 --cnk_dmn lon,1 daily_images.nc daily_timeseries.nc" %  (ntime)
     subprocess.call(ncks_command, shell=True)
+
+if proc_ensstd==1:
+    io = LDAS_io('ensstd', exp, domain, root)
+    #io.bin2netcdf(overwrite=True)
+    io.bin2netcdf()
+    os.chdir(io.paths.ana+'/ens_avg')
+    ntime = io.images.time.values.__len__()
+    ncks_command = "ncks -O -4 -L 4 --cnk_dmn time,%i --cnk_dmn lat,1 --cnk_dmn lon,1 ensstd_images.nc ensstd_timeseries.nc" %  (ntime)
+    subprocess.call(ncks_command, shell=True)
+
+if proc_filter_diagnostics==1:
+    io = LDAS_io('ObsFcstAna', exp, domain, root)
+    outputpath = io.paths.root +'/' + exp + '/output_postprocessed/'
+    os.makedirs(outputpath,exist_ok=True)
+    filter_diagnostics_evaluation(exp, domain, root, outputpath)
 
 if proc_tau_and_lag1_autocor==1:
     calc_tau_and_lag1_autocor(io)
