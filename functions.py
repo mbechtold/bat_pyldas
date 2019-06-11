@@ -18,6 +18,14 @@ from pyldas.interface import LDAS_io
 
 from netCDF4 import Dataset
 
+def read_wtd_data(insitu_path):
+    # read master_table
+
+    # read files
+
+    df = None  # a panda series object with all stations
+    return df
+
 def ncfile_init(fname, lats, lons, species, tags):
 
     ds = Dataset(fname, 'w', 'NETCDF4')
