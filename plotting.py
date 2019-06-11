@@ -15,6 +15,44 @@ from pyldas.interface import LDAS_io
 from bat_pyldas.functions import *
 from scipy.interpolate import interp2d
 
+
+def plot_timeseries_wtd_sfmc(exp, domain, root, outpath, lat=53, lon=25):
+
+    outpath = os.path.join(outpath, exp, 'timeseries')
+    if not os.path.exists(outpath):
+        os.makedirs(outpath,exist_ok=True)
+    io = LDAS_io('daily', exp=exp, domain=domain, root=root)
+    [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
+    fontsize = 12
+    # get M09 rowcol with data
+    col, row = io.grid.lonlat2colrow(lon, lat, domain=True)
+
+    ts_mod_wtd = io.read_ts('zbar', lon, lat, lonlat=True)
+    ts_mod_wtd.name = 'zbar (mod)'
+
+    ts_mod_sfmc = io.read_ts('sfmc', lon, lat, lonlat=True)
+    ts_mod_sfmc.name = 'sfmc (mod)'
+
+    df = pd.concat((ts_mod_wtd, ts_mod_sfmc),axis=1)
+
+    plt.figure(figsize=(19,8))
+
+    ax1 = plt.subplot(211)
+    df[['zbar (mod)']].plot(ax=ax1, fontsize=fontsize, style=['.-'], linewidth=2)
+    plt.ylabel('zbar [m]')
+
+    ax2 = plt.subplot(212)
+    df[['sfmc (mod)']].plot(ax=ax2, fontsize=fontsize, style=['.-'], linewidth=2)
+    plt.ylabel('sfmc $\mathregular{[m^3/m^3]}$')
+
+    my_title = 'lon=%s, lat=%s' % (lon,lat)
+    plt.title(my_title, fontsize=fontsize+2)
+    plt.tight_layout()
+    fname = 'wtd_sfmc_lon_%s_lat_%s' % (lon,lat)
+    fname_long = os.path.join(outpath, fname+'.png')
+    plt.savefig(fname_long, dpi=150)
+    plt.close()
+
 def plot_catparams(exp, domain, root, outpath):
 
     outpath = os.path.join(outpath, exp, 'maps','catparam')
@@ -44,31 +82,6 @@ def plot_catparams(exp, domain, root, outpath):
         figure_single_default(data=data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
                           llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title=param)
 
-def plot_RTMparams(exp, domain, root, outpath):
-
-    outpath = os.path.join(outpath, exp, 'maps', 'rtmparams')
-    if not os.path.exists(outpath):
-        os.makedirs(outpath,exist_ok=True)
-
-    io = LDAS_io('catparam', exp=exp, domain=domain, root=root)
-    [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
-    tc = io.grid.tilecoord
-    tg = io.grid.tilegrids
-
-    # other parameter definitions
-    cmin = None
-    cmax = None
-
-    params = LDAS_io(exp=exp, domain=domain, root=root).read_params('RTMparam')
-
-    for param in params:
-
-        img = np.full(lons.shape, np.nan)
-        img[tc.j_indg.values, tc.i_indg.values] = params[param].values
-        data = np.ma.masked_invalid(img)
-        fname=param
-        figure_single_default(data=data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
-                              llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title=param)
 
 def plot_sfmc_std(exp, domain, root, outpath):
 
@@ -138,6 +151,88 @@ def plot_waterstorage_std(exp, domain, root, outpath):
     plot_title='waterstorage_std [mm]'
     figure_single_default(data=tmp_data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
                           llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title=plot_title)
+
+def figure_single_default(data,lons,lats,cmin,cmax,llcrnrlat, urcrnrlat,
+                              llcrnrlon,urcrnrlon,outpath,exp,fname,plot_title):
+    cmap = 'jet'
+    if cmin == None:
+        cmin = np.nanmin(data)
+    if cmax == None:
+        cmax = np.nanmax(data)
+    if cmin < 0.0:
+        cmax = np.max([-cmin,cmax])
+        cmin = -cmax
+        cmap = 'seismic'
+    # open figure
+    fig_aspect_ratio = (0.1*(np.max(lons)-np.min(lons)))/(0.18*(np.max(lats)-np.min(lats)))
+    figsize = (fig_aspect_ratio+10,10)
+    fontsize = 14
+    cbrange = (cmin, cmax)
+
+    f = plt.figure(num=None, figsize=figsize, dpi=90, facecolor='w', edgecolor='k')
+    plt_img = np.ma.masked_invalid(data)
+    m = Basemap(projection='mill', llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat, llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon, resolution='l')
+    m.drawcoastlines()
+    m.drawcountries()
+    parallels = np.arange(-80.0,81,5.)
+    m.drawparallels(parallels,labels=[False,True,True,False])
+    meridians = np.arange(0.,351.,10.)
+    m.drawmeridians(meridians,labels=[True,False,False,True])
+    # color bar
+    im = m.pcolormesh(lons, lats, plt_img, cmap=cmap, latlon=True)
+    im.set_clim(vmin=cbrange[0], vmax=cbrange[1])
+    #lat=53.
+    #lon=38.5
+    #x,y = m(lon, lat)
+    #m.plot(x, y, 'ko', markersize=6,mfc='none')
+    #cmap = plt.get_cmap(cmap)
+    cb = m.colorbar(im, "bottom", size="6%", pad="15%",shrink=0.5)
+    # label size
+    for t in cb.ax.get_xticklabels():
+        t.set_fontsize(fontsize)
+    for t in cb.ax.get_yticklabels():
+        t.set_fontsize(fontsize)
+    plt.title(plot_title, fontsize=fontsize)
+    #plt.tight_layout()
+    fname_long = os.path.join(outpath, fname+'.png')
+    plt.savefig(fname_long, dpi=f.dpi)
+    plt.close()
+
+
+##########################################################################################################################################################
+##########################################################################################################################################################
+##########################################################################################################################################################
+##########################################################################################################################################################
+##########################################################################################################################################################
+##########################################################################################################################################################
+
+
+
+def plot_RTMparams(exp, domain, root, outpath):
+
+    outpath = os.path.join(outpath, exp, 'maps', 'rtmparams')
+    if not os.path.exists(outpath):
+        os.makedirs(outpath,exist_ok=True)
+
+    io = LDAS_io('catparam', exp=exp, domain=domain, root=root)
+    [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
+    tc = io.grid.tilecoord
+    tg = io.grid.tilegrids
+
+    # other parameter definitions
+    cmin = None
+    cmax = None
+
+    params = LDAS_io(exp=exp, domain=domain, root=root).read_params('RTMparam')
+
+    for param in params:
+
+        img = np.full(lons.shape, np.nan)
+        img[tc.j_indg.values, tc.i_indg.values] = params[param].values
+        data = np.ma.masked_invalid(img)
+        fname=param
+        figure_single_default(data=data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                              llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title=param)
 
 def plot_lag1_autocor(exp, domain, root, outpath):
 
@@ -1314,43 +1409,6 @@ def plot_timeseries(exp, domain, root, outpath, lat=53, lon=25):
     plt.savefig(fname_long, dpi=150)
     plt.close()
 
-
-def plot_timeseries_wtd_sfmc(exp, domain, root, outpath, lat=53, lon=25):
-
-    outpath = os.path.join(outpath, exp, 'timeseries')
-    if not os.path.exists(outpath):
-        os.makedirs(outpath,exist_ok=True)
-    io = LDAS_io('daily', exp=exp, domain=domain, root=root)
-    [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
-    fontsize = 12
-    # get M09 rowcol with data
-    col, row = io.grid.lonlat2colrow(lon, lat, domain=True)
-
-    ts_mod_wtd = io.read_ts('zbar', lon, lat, lonlat=True)
-    ts_mod_wtd.name = 'zbar (mod)'
-
-    ts_mod_sfmc = io.read_ts('sfmc', lon, lat, lonlat=True)
-    ts_mod_sfmc.name = 'sfmc (mod)'
-
-    df = pd.concat((ts_mod_wtd, ts_mod_sfmc),axis=1)
-
-    plt.figure(figsize=(19,8))
-
-    ax1 = plt.subplot(211)
-    df[['zbar (mod)']].plot(ax=ax1, fontsize=fontsize, style=['.-'], linewidth=2)
-    plt.ylabel('zbar [m]')
-
-    ax2 = plt.subplot(212)
-    df[['sfmc (mod)']].plot(ax=ax2, fontsize=fontsize, style=['.-'], linewidth=2)
-    plt.ylabel('sfmc $\mathregular{[m^3/m^3]}$')
-
-    my_title = 'lon=%s, lat=%s' % (lon,lat)
-    plt.title(my_title, fontsize=fontsize+2)
-    plt.tight_layout()
-    fname = 'wtd_sfmc_lon_%s_lat_%s' % (lon,lat)
-    fname_long = os.path.join(outpath, fname+'.png')
-    plt.savefig(fname_long, dpi=150)
-    plt.close()
 
 def plot_ismn_locations():
 
