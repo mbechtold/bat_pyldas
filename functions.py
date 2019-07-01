@@ -5,6 +5,8 @@ import os
 import xarray as xr
 import pandas as pd
 import numpy as np
+import datetime as dt
+from datetime import datetime, timedelta
 
 from pyldas.grids import EASE2
 
@@ -18,13 +20,108 @@ from pyldas.interface import LDAS_io
 
 from netCDF4 import Dataset
 
-def read_wtd_data(insitu_path):
-    # read master_table
-    # TEST
-    # read files
+def read_wtd_data(insitu_path, exp, domain, root):
 
-    df = None  # a panda series object with all stations
-    return df
+    master_table = pd.read_csv('/vsc-hard-mounts/leuven-data/329/vsc32924/in-situ_data/Mastertable/WTD_TROPICS_MASTER_TABLE.csv',sep=';')
+    blacklist = pd.read_csv('/vsc-hard-mounts/leuven-data/329/vsc32924/in-situ_data/Blacklist/Blacklisted_stations.csv', sep=';')
+
+    io = LDAS_io('daily', exp=exp, domain=domain, root=root)
+    [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
+
+    catparam = io.read_params('catparam')
+    poros = np.full(lons.shape, np.nan)
+    poros[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['poros'].values
+
+    first_site = True
+
+    for i,site_ID in enumerate(master_table.iloc[:,0]):
+
+        if not site_ID.startswith('IN') and not site_ID.startswith('BR'):
+            # Only use sites in Indonesia and Brunei.
+            continue
+
+        if blacklist.iloc[:, 0].str.contains(site_ID).any() or master_table.iloc[i,4] == 0:
+            # If site is on the blacklist (contains bad data), or if "comparison" =  0, then don include that site in the dataframe.
+            continue
+
+        # Get lat lon from master table for site.
+        lon = master_table.iloc[i,1]
+        lat = master_table.iloc[i,2]
+
+        # Get porosity for site lon lat.
+        # Get M09 rowcol with data.
+        col, row = io.grid.lonlat2colrow(lon, lat, domain=True)
+        # Get poros for col row.
+        siteporos = poros[row, col]
+
+
+        if siteporos <= 0.7:
+            # If the porosity of the site is 0.7 or lower the site is not classified as peatland in the model.
+            continue
+
+        if site_ID.startswith('IN'):
+            folder_wtd = insitu_path + '/Sipalaga/processed/WTD/Daily/'
+            folder_p = insitu_path + '/Sipalaga/processed/Precipitation/Daily/'
+            site_precip = site_ID
+        elif site_ID.startswith('BR'):
+            folder_wtd = insitu_path + '/Brunei/processed/WTD/Daily/'
+            folder_p = insitu_path + '/Brunei/processed/Precipitation/Daily/'
+            site_precip = 'Brunei_Darussalam'   # For Brunei the throughfall data are the average of data from four throughfall
+            # gauges along a 100 m transect. And Therefore itś the same for all four stations.
+
+        if first_site == True:
+            # Load in situ data.
+            # wtd:
+            wtd_obs = pd.read_csv(folder_wtd + site_ID + '.csv')
+            wtd_obs.rename({'date': 'time', 'wtd': site_ID}, axis=1, inplace=True)
+            wtd_obs['time'] = pd.to_datetime(wtd_obs['time'])
+            wtd_obs = wtd_obs.set_index('time')
+            # Precipitation:
+            precip_obs = pd.read_csv(folder_p + site_precip + '.csv')
+            precip_obs.rename({'date': 'time', 'precipitation': site_ID}, axis=1, inplace=True)
+            precip_obs['time'] = pd.to_datetime(precip_obs['time'])
+            precip_obs = precip_obs.set_index('time')
+
+            # Load model wtd data.
+            wtd_mod = io.read_ts('zbar', lon, lat, lonlat=True)
+
+
+            # Check if overlapping data.
+            df_check = pd.concat((wtd_obs, wtd_mod), axis=1)
+            no_overlap = pd.isnull(df_check).any(axis=1)
+            if False in no_overlap.values:
+                first_site = False
+        else:
+            # Load in situ data.
+            # wtd:
+            wtd_obs_tmp = pd.read_csv(folder_wtd + site_ID + '.csv')
+            wtd_obs_tmp.rename({'date': 'time', 'wtd': site_ID}, axis=1, inplace=True)
+            wtd_obs_tmp['time'] = pd.to_datetime(wtd_obs_tmp['time'])
+            wtd_obs_tmp = wtd_obs_tmp.set_index('time')
+            # Precipitation:
+            precip_obs_tmp = pd.read_csv(folder_p + site_precip + '.csv')
+            precip_obs_tmp.rename({'date': 'time', 'precipitation': site_ID}, axis=1, inplace=True)
+            precip_obs_tmp['time'] = pd.to_datetime(precip_obs_tmp['time'])
+            precip_obs_tmp = precip_obs_tmp.set_index('time')
+
+
+            # Load model data.
+            wtd_mod_tmp = io.read_ts('zbar', lon, lat, lonlat=True)
+
+
+            # Check if overlaping data.
+            df_check = pd.concat((wtd_obs_tmp, wtd_mod_tmp), axis=1)
+            no_overlap = pd.isnull(df_check).any(axis=1)
+            if False in no_overlap.values:
+                wtd_obs = pd.concat((wtd_obs, wtd_obs_tmp), axis=1)
+                wtd_mod = pd.concat((wtd_mod, wtd_mod_tmp), axis=1)
+                precip_obs = pd.concat((precip_obs, precip_obs_tmp), axis=1)
+
+
+    wtd_mod.columns = wtd_obs.columns
+
+    return wtd_obs, wtd_mod, precip_obs
+
 
 def ncfile_init(fname, lats, lons, species, tags):
 

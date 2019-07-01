@@ -7,14 +7,151 @@ import os
 import xarray as xr
 import pandas as pd
 import numpy as np
+import datetime
 import matplotlib.pyplot as plt
 from mpl_toolkits.basemap import Basemap
 from matplotlib.colors import LogNorm
 from pyldas.grids import EASE2
 from pyldas.interface import LDAS_io
 from bat_pyldas.functions import *
+from scipy.stats import zscore
 from scipy.interpolate import interp2d
+from validation_good_practice.ancillary import metrics
+import sys
 
+def assign_units(var):
+
+    # Function to assign units to the variable 'var'.
+
+    if var == 'srfexc' or var == 'rzexc' or var == 'catdef':
+        unit = '[mm]'
+    elif var == 'ar1' or var == 'ar2':
+        unit = '[-]'
+    elif var == 'sfmc' or var == 'rzmc':
+        unit = '[m^3/m^3]'
+    elif var == 'tsurf' or var == 'tp1' or var == 'tpN':
+        unit = '[K]'
+    elif var == 'shflux' or var == 'lhflux':
+        unit = '[W/m^2]'
+    elif var == 'evap' or var == 'runoff':
+        unit = '[mm/d]'
+    elif var == 'zbar':
+        unit = '[m]'
+    return(unit)
+
+def plot_delta_spinup(exp1, exp2, domain, root, outpath):
+
+    # Funtion to plot the difference between two runs. Takes the difference between the all the sites for the two runs and
+    # saves the maximum difference for every time step. Does this for all variables.
+
+    outpath = os.path.join(outpath, exp1, 'delta_spinup')
+    if not os.path.exists(outpath):
+        os.makedirs(outpath, exist_ok=True)
+
+    io_spinup1 = LDAS_io('daily', exp=exp1, domain=domain, root=root)
+    io_spinup2 = LDAS_io('daily', exp=exp2, domain=domain, root=root) # This path is not correct anymore, the long nc cubes for the 2nd spinup are now
+    # stored in /ddn1/vol1/staging/leuven/stg_00024/OUTPUT/hugor/output/INDONESIA_M09_v01_spinup2/ as daily_images_2000-2019.nc and daily_timeseries_2000-2019.nc.
+    [lons, lats, llcrnrlat, urcrnrlat, llcrnrlon, urcrnrlon] = setup_grid_grid_for_plot(io_spinup1)
+
+    ntimes = len(io_spinup1.images['time'])
+    delta_var = np.zeros([ntimes])
+
+    for i,cvar in enumerate(io_spinup1.images.data_vars):   # Loop over all variables in cvar.
+
+        unit = assign_units(cvar)   # Assign units to cvar.
+
+        for t in range(ntimes):
+            # logging.info('time %i of %i' % (t, ntimes))
+            diff = io_spinup1.images[cvar][t,:,:] - io_spinup2.images[cvar][t,:,:]
+            diff_1D = diff.values.ravel()   # Make a 1D array.
+            diff_1D_noNaN = diff_1D[~np.isnan(diff_1D)] # Remove nan.
+            diff_1D_sorted = np.sort(diff_1D_noNaN.__abs__()) # Sort the absolute values.
+            delta_var[t] = diff_1D_sorted[-2]  # Take the second largest absolute value, due to problems with instability
+            # in one grid cell causing abnormal values.
+
+            # # searching for strange values evaporation
+            # if cvar == 'evap' and A.data.item() > 10 and t > 2000:
+            #     # print(t)
+            #     print(np.where(np.abs(diff.values) > 10))
+
+
+
+
+        # Plot the maximum difference between the two runs and save figure in 'outpath'.
+        plt.plot(delta_var,linewidth=2)
+        my_title = cvar
+        plt.title(my_title, fontsize=14)
+        my_xlabel = 'time step [days]'
+        plt.xlabel(my_xlabel, fontsize=12)
+        my_ylabel = 'difference' + ' ' + '$\mathregular{' + unit + '}$'
+        plt.ylabel(my_ylabel, fontsize=12)
+        fname = cvar
+        fname_long = os.path.join(outpath, fname + '.png')
+        plt.savefig(fname_long, dpi=150)
+        plt.close()
+
+def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, exp, outpath):
+
+    # Initiate dataframe to store metrics in.
+    INDEX = wtd_obs.columns
+    COL = ['bias', 'ubRMSD', 'Pearson_R', 'RMSD']
+    df_metrics = pd.DataFrame(index=INDEX, columns=COL,dtype=float)
+
+    for c,site in enumerate(wtd_obs.columns):
+
+        df_tmp = pd.concat((wtd_mod[site],wtd_obs[site]),axis=1)
+        df_tmp.columns = ['data_mod','data_obs']
+
+        bias_site = metrics.bias(df_tmp) # Bias = bias_site[0]
+        ubRMSD_site = metrics.ubRMSD(df_tmp) # ubRMSD = ubRMSD_site[0]
+        pearson_R_site = metrics.Pearson_R(df_tmp) # Pearson_R = pearson_R_site[0]
+        RMSD_site = (ubRMSD_site[0]**2 + bias_site[0]**2)**0.5
+
+        # Save metrics in df_metrics.
+        df_metrics.loc[site]['bias'] = bias_site[0]
+        df_metrics.loc[site]['ubRMSD'] =  ubRMSD_site[0]
+        df_metrics.loc[site]['Pearson_R'] = pearson_R_site[0]
+        df_metrics.loc[site]['RMSD'] = RMSD_site
+
+        # Create x-axis matching in situ data.
+        x_start = df_tmp.index[0]  # Start a-axis with the first day with an observed wtd value.
+        x_end = df_tmp.index[-1]   # End a-axis with the last day with an observed wtd value.
+        Xlim = [x_start, x_end]
+
+        # Calculate z-score for the time series.
+        df_zscore = df_tmp.apply(zscore)
+
+        plt.figure(figsize=(19, 8))
+        fontsize = 12
+
+        ax1 = plt.subplot(311)
+        df_tmp.plot(ax=ax1, fontsize=fontsize, style=['-','.'], linewidth=2, xlim=Xlim)
+        plt.ylabel('zbar [m]')
+
+        Title = site + '\n' + ' bias = ' + str(bias_site[0]) + ', ubRMSD = ' + str(ubRMSD_site[0]) + ', Pearson_R = ' + str(pearson_R_site[0]) + ', RMSD = ' + str(RMSD_site)
+        plt.title(Title)
+
+        ax2 = plt.subplot(312)
+        df_zscore.plot(ax=ax2, fontsize=fontsize, style=['-','.'], linewidth=2, xlim=Xlim)
+        plt.ylabel('z-score')
+
+        ax3 = plt.subplot(313)
+        precip_obs[site].plot(ax=ax3, fontsize=fontsize, style=['.'], linewidth=2, xlim=Xlim)
+        plt.ylabel('precipitation [mm/d]')
+
+        plt.tight_layout()
+        fname = site
+        fname_long = os.path.join(outpath + '/' + exp + '/comparison_insitu_data/timeseries/' + fname + '.png')
+        plt.savefig(fname_long, dpi=150)
+        plt.close()
+
+    # Plot boxplot for metrics
+    plt.figure()
+    df_metrics.boxplot()
+    fname = 'metrics'
+    fname_long = os.path.join(outpath + '/' + exp + '/comparison_insitu_data/' + fname + '.png')
+    plt.savefig(fname_long, dpi=150)
+    plt.close()
 
 def plot_timeseries_wtd_sfmc(exp, domain, root, outpath, lat=53, lon=25):
 
@@ -114,6 +251,7 @@ def plot_zbar_std(exp, domain, root, outpath):
 
     io = LDAS_io('daily', exp=exp, domain=domain, root=root)
     [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
+
 
     # calculate variable to plot
     tmp_data = io.timeseries['zbar']

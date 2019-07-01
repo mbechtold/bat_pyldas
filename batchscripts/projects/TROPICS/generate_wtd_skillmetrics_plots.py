@@ -15,6 +15,6 @@ outpath = '/vsc-hard-mounts/leuven-data/329/vsc32924/figures_temp'
 
 insitu_path = '/vsc-hard-mounts/leuven-data/329/vsc32924/in-situ_data'
 
-wtd_obs, wtd_mod = read_wtd_data(insitu_path, exp, domain, root)
+wtd_obs, wtd_mod, precip_obs = read_wtd_data(insitu_path, exp, domain, root)
 
-plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, exp, outpath)
+plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, exp, outpath)
