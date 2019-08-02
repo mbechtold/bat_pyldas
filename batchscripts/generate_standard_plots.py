@@ -19,10 +19,10 @@ os.makedirs(outpath,exist_ok=True)
 plot_timeseries_wtd_sfmc(exp, domain, root, outpath, lat=60.0, lon=75.0)
 
 # maps
-plot_catparams(exp, domain, root, outpath)
-plot_zbar_std(exp, domain, root, outpath)
-plot_waterstorage_std(exp, domain, root, outpath)
-plot_sfmc_std(exp, domain, root, outpath)
+#plot_catparams(exp, domain, root, outpath)
+#plot_zbar_std(exp, domain, root, outpath)
+#plot_waterstorage_std(exp, domain, root, outpath)
+#plot_sfmc_std(exp, domain, root, outpath)
 
 
 #plot_RTMparams(exp, domain, root, outpath)
