@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 
-root='/scratch/leuven/317/vsc31786/output'
-root='/staging/leuven/stg_00024/OUTPUT/michelb'
-exp = 'SMAP_EASEv2_M09_SI_SMOSfw_DA'
+root='/scratch/leuven/329/vsc32924/output'
+exp = 'INDONESIA_M09_v01_spinup'
 domain = 'SMAP_EASEv2_M09'
-outpath = '/staging/leuven/stg_00024/OUTPUT/michelb/FIG_tmp'
+
+
+outpath = '/vsc-hard-mounts/leuven-data/329/vsc32924/figures_temp'
 
 import os
 import platform
@@ -16,7 +17,7 @@ from bat_pyldas.plotting import *
 os.makedirs(outpath,exist_ok=True)
 
 # time series
-plot_timeseries_wtd_sfmc(exp, domain, root, outpath, lat=60.0, lon=75.0)
+plot_timeseries_wtd_sfmc(exp, domain, root, outpath, lat=1.344, lon=101.411)
 
 # maps
 #plot_catparams(exp, domain, root, outpath)
