@@ -244,7 +244,7 @@ def plot_peat_and_sites(exp, domain, root, outpath):
     #lat=48.
     #lon=51.0
     x,y=m(sites['Lon'].values,sites['Lat'].values)
-    m.plot(x,y,'b.',markersize=9,mfc='none')
+    m.plot(x,y,'.',color='orangered',markersize=9,mfc='none')
 
     im=m.pcolormesh(lons,lats,plt_img,cmap=cmap,latlon=True)
     im.set_clim(vmin=cbrange[0],vmax=cbrange[1])
