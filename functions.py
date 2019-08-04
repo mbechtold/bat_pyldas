@@ -778,7 +778,7 @@ def ensstd_stats(exp, domain, root, outputpath, stat):
                 ds[cvar][:,:] = io.timeseries[cvar][:,:,:].std(dim='time',skipna=True).values
 
     x,y = get_cdf_integral_xy()
-    if exp.find("CLSM")<0:
+    if (exp.find("CLSM")<0) & (cvars[0]!='zbar'):
         for row in range(io.timeseries['catdef'].shape[1]):
             for col in range(io.timeseries['catdef'].shape[2]):
                 if poros[row,col]>0.7:
