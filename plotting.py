@@ -977,7 +977,7 @@ def plot_filter_diagnostics_delta(exp1, exp2, domain, root, outpath):
     if not os.path.exists(outpath):
         os.makedirs(outpath,exist_ok=True)
     # set up grid
-    io = LDAS_io('ObsFcstAna', exp=exp1, domain=domain, root=root)
+    io = LDAS_io('daily', exp=exp1, domain=domain, root=root)
     N_days = (io.images.time.values[-1]-io.images.time.values[0]).astype('timedelta64[D]').item().days
     [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
     # get filter diagnostics
