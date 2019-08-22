@@ -6,9 +6,17 @@ if platform.system() == 'Linux':
     import matplotlib
     matplotlib.use('TkAgg')
 from bat_pyldas.plotting import *
+import getpass
 
 root='/staging/leuven/stg_00024/OUTPUT/michelb'
+outpath = '/staging/leuven/stg_00024/OUTPUT/michelb/FIG_tmp'
+
+if getpass.getuser()=='michel':
+    root='/home/michel/backup_HPC/output'
+    outpath = '/home/michel/backup_HPC/FIG_tmp'
+
 #root='/scratch/leuven/317/vsc31786/output'
+
 exp = 'SMAP_EASEv2_M09_SMOSfw_DA'
 domain = 'SMAP_EASEv2_M09'
 
@@ -18,7 +26,6 @@ exp2 = 'SMAP_EASEv2_M09_SMOSfw_DA'
 dti = pd.date_range('2018-08-06', periods=2, freq='3H')
 dti_kg = pd.date_range('2010-01-01', periods=365*9*8, freq='3H')
 
-outpath = '/staging/leuven/stg_00024/OUTPUT/michelb/FIG_tmp'
 os.makedirs(outpath,exist_ok=True)
 
 #plot_innov_std_quatro(exp, domain, root, outpath)
