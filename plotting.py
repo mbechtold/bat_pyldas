@@ -18,6 +18,7 @@ from scipy.stats import zscore
 from scipy.interpolate import interp2d
 from validation_good_practice.ancillary import metrics
 import sys
+import seaborn
 
 def assign_units(var):
 
@@ -209,15 +210,20 @@ def plot_peat_and_sites(exp, domain, root, outpath):
     tg = io.grid.tilegrids
 
     params = LDAS_io(exp=exp, domain=domain, root=root).read_params('catparam')
-
+    #RTMparams = LDAS_io(exp=exp, domain=domain, root=root).read_params('RTMparam')
+    # land fraction
+    frac_cell = io.grid.tilecoord.frac_cell.values
     param='poros'
-
+    # fraction of peatlands with less than 5 % open water
+    frac_peatland_less5 = np.nansum(np.all(np.vstack((frac_cell>0.95,params['poros'].values>0.8)),axis=0))/np.nansum(params['poros'].values>0.8)
+    # set more than 5% open water grid cells to 1.
+    params[param].values[np.all(np.vstack((frac_cell<0.95,params['poros'].values>0.8)),axis=0)] = 1.
+    params[param].values[params['poros'].values<0.8] = np.nan
+    params[param].values[np.all(np.vstack((params['poros'].values<0.95,params['poros'].values>0.8)),axis=0)] = 0.0
     img = np.full(lons.shape, np.nan)
     img[tc.j_indg.values, tc.i_indg.values] = params[param].values
     data = np.ma.masked_invalid(img)
     fname='01_'+param
-    data[data>0.8]=1
-    data[data<=0.8]=0
     cmin = 0
     cmax = 1
     title='soil'
@@ -225,12 +231,12 @@ def plot_peat_and_sites(exp, domain, root, outpath):
     figsize = (13, 10)
     fontsize = 13
     f = plt.figure(num=None, figsize=figsize, dpi=300, facecolor='w', edgecolor='k')
-    cmap = matplotlib.colors.ListedColormap([[1.0,1.0,1.0,1.0],[0.5,0.5,0.5,1.]])
+    cmap = matplotlib.colors.ListedColormap([[255./255,193./255,7./255],[30./255,136./255,229./255]])
     #cmap = 'jet'
     cbrange = (cmin, cmax)
     ax=plt.subplot(3,1,3)
     plt_img=np.ma.masked_invalid(data)
-    m=Basemap(projection='mill',llcrnrlat=llcrnrlat,urcrnrlat=urcrnrlat,llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,resolution='c')
+    m=Basemap(projection='mill',llcrnrlat=llcrnrlat,urcrnrlat=urcrnrlat,llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,resolution='l')
     m.drawcoastlines(linewidth=0.5)
     m.drawcountries(linewidth=0.5)
     parallels=np.arange(-80.0,81,5.)
@@ -239,12 +245,12 @@ def plot_peat_and_sites(exp, domain, root, outpath):
     m.drawmeridians(meridians,linewidth=0.5,labels=[False,False,False,True])
 
     # load peatland sites
-    sites = pd.read_csv('/data/leuven/317/vsc31786/FIG_tmp/00DA/20190228_M09/wtd_stats_sites.txt',sep=',')
+    sites = pd.read_csv('/data/leuven/317/vsc31786/FIG_tmp/00DA/20190228_M09/cluster_radius_2_bog.txt',sep=',')
     #http://lagrange.univ-lyon1.fr/docs/matplotlib/users/colormapnorms.html
     #lat=48.
     #lon=51.0
     x,y=m(sites['Lon'].values,sites['Lat'].values)
-    m.plot(x,y,'.',color='orangered',markersize=9,mfc='none')
+    m.plot(x,y,'.',color=(216./255,27./255,96./255),markersize=12,markeredgewidth=2,mfc='none')
 
     im=m.pcolormesh(lons,lats,plt_img,cmap=cmap,latlon=True)
     im.set_clim(vmin=cbrange[0],vmax=cbrange[1])
@@ -751,6 +757,177 @@ def plot_filter_diagnostics(exp, domain, root, outpath):
     figure_single_default(data=data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
                           llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title=my_title)
 
+def plot_filter_diagnostics_gs(exp, domain, root, outpath):
+    #H-Asc
+    #H-Des
+    #V-Asc
+    #V-Des
+    outpath = os.path.join(outpath, exp, 'maps', 'diagnostics_gs')
+    if not os.path.exists(outpath):
+        os.makedirs(outpath,exist_ok=True)
+    # set up grid
+    io = LDAS_io('ObsFcstAna', exp=exp, domain=domain, root=root)
+    io_daily = LDAS_io('daily', exp=exp, domain=domain, root=root)
+    #N_days = (io.images.time.values[-1]-io.images.time.values[0]).astype('timedelta64[D]').item().days
+    gs_daily = (pd.to_datetime(io_daily.timeseries['time'].values).month > 7) & (pd.to_datetime(io_daily.timeseries['time'].values).month < 10)
+    N_days = io_daily.timeseries['time'][gs_daily].size
+    [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
+    # get filter diagnostics
+    ncpath = io.paths.root +'/' + exp + '/output_postprocessed/'
+    ds = xr.open_dataset(ncpath + 'filter_diagnostics_gs.nc')
+    ds_ensstd = xr.open_dataset(ncpath + 'ensstd_mean.nc')
+    ncpath_OL = io.paths.root +'/' + exp[:-3] + '/output_postprocessed/'
+    ds_ensstd_OL = xr.open_dataset(ncpath_OL + 'ensstd_mean.nc')
+
+    n_valid_incr = ds['n_valid_incr'][:,:].values
+    np.place(n_valid_incr,n_valid_incr==0,np.nan)
+    catparam = io.read_params('catparam')
+    poros = np.full(lons.shape, np.nan)
+    poros[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['poros'].values
+
+    ############## n_valid_innov
+    data = ds['n_valid_innov'][:, :, :].sum(dim='species',skipna=True)/2.0/N_days
+    data = data.where(data != 0)
+    data = obs_M09_to_M36(data)
+    cmin = 0
+    cmax = 0.35
+    fname='n_valid_innov'
+    figure_single_default(data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,
+                          plot_title='N per day: m = %.2f, s = %.2f' % (np.nanmean(data),np.nanstd(data)))
+
+    ############## n_valid_innov_quatro
+    data = ds['n_valid_innov'][0,:,:]/N_days
+    data = data.where(data != 0)
+    data0 = obs_M09_to_M36(data)
+    data = ds['n_valid_innov'][1,:,:]/N_days
+    data = data.where(data != 0)
+    data1 = obs_M09_to_M36(data)
+    data = ds['n_valid_innov'][2,:,:]/N_days
+    data = data.where(data != 0)
+    data2 = obs_M09_to_M36(data)
+    data = ds['n_valid_innov'][3,:,:]/N_days
+    data = data.where(data != 0)
+    data3 = obs_M09_to_M36(data)
+    cmin = 0
+    cmax = 0.35
+    fname='n_valid_innov_quatro'
+    data_all = list([data0,data1,data2,data3])
+    figure_quatro_default(data_all,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,
+                          plot_title=(['n_valid_innov_H_Asc', 'n_valid_innov_H_Des', 'n_valid_innov_V_Asc', 'n_valid_innov_V_Des']))
+
+    ########## innov mean #############
+    data = ds['innov_mean'][0,:,:].values
+    data0 = obs_M09_to_M36(data)
+    data = ds['innov_mean'][1,:,:].values
+    data1 = obs_M09_to_M36(data)
+    data = ds['innov_mean'][2,:,:].values
+    data2 = obs_M09_to_M36(data)
+    data = ds['innov_mean'][3,:,:].values
+    data3 = obs_M09_to_M36(data)
+    cmin = -3.
+    cmax = 3.
+    fname='innov_mean'
+    #my_title='innov_mean: m = %.2f, s = %.2f [mm]' % (np.nanmean(data0),np.nanstd(data0))
+    data_all = list([data0,data1,data2,data3])
+    figure_quatro_default(data=data_all,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,
+                          plot_title=(['innov_mean_H_Asc', 'innov_mean_H_Des', 'innov_mean_V_Asc', 'innov_mean_V_Des']))
+
+    ########## innov std #############
+    data = ds['innov_var'][0,:,:].values**0.5
+    data0 = obs_M09_to_M36(data)
+    data = ds['innov_var'][1,:,:].values**0.5
+    data1 = obs_M09_to_M36(data)
+    data = ds['innov_var'][2,:,:].values**0.5
+    data2 = obs_M09_to_M36(data)
+    data = ds['innov_var'][3,:,:].values**0.5
+    data3 = obs_M09_to_M36(data)
+    cmin = None
+    cmax = None
+    fname='innov_std'
+    #my_title='innov_mean: m = %.2f, s = %.2f [mm]' % (np.nanmean(data0),np.nanstd(data0))
+    data_all = list([data0,data1,data2,data3])
+    figure_quatro_default(data=data_all,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,
+                          plot_title=(['innov_std_H_Asc', 'innov_std_H_Des', 'innov_std_V_Asc', 'innov_std_V_Des']))
+
+    ########## innov mean #############
+    data = ds['norm_innov_mean'][0,:,:].values
+    data0 = obs_M09_to_M36(data)
+    data = ds['norm_innov_mean'][1,:,:].values
+    data1 = obs_M09_to_M36(data)
+    data = ds['norm_innov_mean'][2,:,:].values
+    data2 = obs_M09_to_M36(data)
+    data = ds['norm_innov_mean'][3,:,:].values
+    data3 = obs_M09_to_M36(data)
+    cmin = None
+    cmax = None
+    fname='norm_innov_mean'
+    #my_title='innov_mean: m = %.2f, s = %.2f [mm]' % (np.nanmean(data0),np.nanstd(data0))
+    data_all = list([data0,data1,data2,data3])
+    figure_quatro_default(data=data_all,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,
+                          plot_title=(['norm_innov_mean_H_Asc [K]', 'norm_innov_mean_H_Des [K]', 'norm_innov_mean_V_Asc [K]', 'norm_innov_mean_V_Des [K]']))
+
+    ########## innov std #############
+    data = ds['norm_innov_var'][0,:,:].values**0.5
+    data0 = obs_M09_to_M36(data)
+    data = ds['norm_innov_var'][1,:,:].values**0.5
+    data1 = obs_M09_to_M36(data)
+    data = ds['norm_innov_var'][2,:,:].values**0.5
+    data2 = obs_M09_to_M36(data)
+    data = ds['norm_innov_var'][3,:,:].values**0.5
+    data3 = obs_M09_to_M36(data)
+    cmin = None
+    cmax = None
+    fname='norm_innov_std'
+    #my_title='innov_mean: m = %.2f, s = %.2f [mm]' % (np.nanmean(data0),np.nanstd(data0))
+    data_all = list([data0,data1,data2,data3])
+    figure_quatro_default(data=data_all,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,
+                          plot_title=(['norm_innov_std_H_Asc [K]', 'norm_innov_std_H_Des [K]', 'norm_innov_std_V_Asc [K]', 'norm_innov_std_V_Des [K]']))
+
+    ############## n_valid_incr
+    data = ds['n_valid_incr']/N_days
+    data = data.where(data != 0)
+    data = obs_M09_to_M36(data)
+    cmin = 0
+    cmax = 1.00
+    fname='n_valid_incr'
+    figure_single_default(data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,
+                          plot_title='N per day: m = %.2f, s = %.2f' % (np.nanmean(data),np.nanstd(data)))
+
+    ########## incr std #############
+    data = ds['incr_srfexc_var'].values**0.5
+    cmin = 0
+    cmax = None
+    fname='incr_srfexc_std'
+    my_title='std(\u0394srfexc): m = %.2f, s = %.2f [mm]' % (np.nanmean(data),np.nanstd(data))
+    figure_single_default(data=data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title=my_title)
+
+    ########## incr std #############
+    data = ds['incr_rzexc_var'].values**0.5
+    cmin = 0
+    cmax = None
+    fname='incr_rzexc_std'
+    my_title='std(\u0394rzexc): m = %.2f, s = %.2f [mm]' % (np.nanmean(data),np.nanstd(data))
+    figure_single_default(data=data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title=my_title)
+
+    ########## incr std #############
+    data = ds['incr_catdef_var'].values**0.5
+    cmin = 0
+    cmax = 20
+    fname='incr_catdef_std'
+    my_title='std(\u0394catdef): m = %.2f, s = %.2f [mm]' % (np.nanmean(data),np.nanstd(data))
+    figure_single_default(data=data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title=my_title)
+
+
 def plot_scaling_delta(exp1, exp2, domain, root, outpath):
     exp = exp1
     angle = 40
@@ -823,6 +1000,57 @@ def plot_filter_diagnostics_delta(exp1, exp2, domain, root, outpath):
     poros = np.full(lons.shape, np.nan)
     poros[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['poros'].values
 
+
+    ########## innov var triple #############
+    data = np.nanmean(np.dstack((ds1['innov_var'][0,:, :].values, ds1['innov_var'][1,:, :].values, ds1['innov_var'][2,:, :].values, ds1['innov_var'][3,:, :].values)),axis=2)
+    np.place(data,n_valid_innov<1,np.nan)
+    data_p1 = obs_M09_to_M36(data)
+    data = np.nanmean(np.dstack((ds2['innov_var'][0,:, :].values, ds2['innov_var'][1,:, :].values, ds2['innov_var'][2,:, :].values, ds2['innov_var'][3,:, :].values)),axis=2)
+    np.place(data,n_valid_innov<1,np.nan)
+    data_p2 = obs_M09_to_M36(data)
+    data = (ds2['innov_var'][0, :, :].values - ds1['innov_var'][0,:, :].values)
+    data0 = obs_M09_to_M36(data)
+    data = (ds2['innov_var'][1, :, :].values - ds1['innov_var'][1,:, :].values)
+    data1 = obs_M09_to_M36(data)
+    data = (ds2['innov_var'][2, :, :].values - ds1['innov_var'][2,:, :].values)
+    data2 = obs_M09_to_M36(data)
+    data = (ds2['innov_var'][3, :, :].values - ds1['innov_var'][3,:, :].values)
+    data3 = obs_M09_to_M36(data)
+    data_p3 = np.nanmean(np.dstack((data0,data1,data2,data3)),axis=2)
+    np.place(data_p3,(n_valid_innov<1) | (poros<0.7) | (np.isnan(n_valid_innov)),np.nan)
+    cmin = ([0,0,-15])
+    cmax = ([270,270,15])
+    fname='02_delta_innov_var_avg_triple'
+    #my_title='innov_var: m = %.2f, s = %.2f [mm]' % (np.nanmean(data0),np.nanstd(data0))
+    data_all = list([data_p1,data_p2,data_p3])
+    mstats = list(['m = %.1f, s = %.1f' % (np.nanmean(data_p1),np.nanstd(data_p1)),
+                   'm = %.1f, s = %.1f' % (np.nanmean(data_p2),np.nanstd(data_p2)),
+                   'm = %.1f, s = %.1f' % (np.nanmean(data_p3[poros>0.7]),np.nanstd(data_p3[poros>0.7]))])
+    figure_triple_default(data=data_all,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp1,fname=fname,
+                          plot_title=([r'$var(O-F)\/(CLSM)\/[K^2]$', r'$var(O-F)\/(PEATCLSM)\/[K^2]$', \
+                                       r'$var(O-F)_{PEATCLSM} - var(O-F)_{CLSM}\enspace(K^2)$']),mstats=mstats)
+    # open figure
+    figsize = (6, 6)
+    fontsize = 13
+    #f = plt.figure(num=None, figsize=figsize, dpi=300, facecolor='w', edgecolor='k')
+    seaborn.distplot(data_p1[(poros>0.7) & (np.isnan(data_p1)==False)],hist=False, kde_kws={'clip': (0.0, 20.0)})
+    seaborn.distplot(data_p2[(poros>0.7) & (np.isnan(data_p2)==False)],hist=False, kde_kws={'clip': (0.0, 20.0)})
+    plt.xlabel('$var(O-F)\enspace(K^2)$')
+    plt.ylabel('Density')
+    plt.legend(['CLSM', 'PEATCLSM'])
+
+    #plt.vlines(x = np.nanmean(data_p1[poros>0.7]), ymin=0.0, ymax=0.1,
+    #           color = 'red', linestyle = 'dotted', linewidth = 2)
+
+    #plt.vlines(x = np.nanmean(data_p2[poros>0.7]), ymin=0.0, ymax=0.1,
+    #            color = 'blue', linestyle = 'dotted', linewidth = 2)
+    fname = '02_n_valid_number'
+    fname_long = os.path.join(outpath, fname+'.png')
+    #plt.savefig(fname_long, dpi=f.dpi)
+    plt.savefig(fname_long)
+
+    print(ddd)
     ########## catdef var pct #############
     data = (ds1['incr_catdef_var'][:, :].values +  ds1['incr_rzexc_var'][:, :].values +  ds1['incr_srfexc_var'][:, :].values)**0.5
     np.place(data,n_valid_incr<100,np.nan)
@@ -862,9 +1090,9 @@ def plot_filter_diagnostics_delta(exp1, exp2, domain, root, outpath):
     fname='delta_norm_innov_std_avg_triple'
     #my_title='norm_innov_var: m = %.2f, s = %.2f [mm]' % (np.nanmean(data0),np.nanstd(data0))
     data_all = list([data_p1,data_p2,data_p3])
-    mstats = list(['m = %.3f, s = %.3f' % (np.nanmean(data_p1),np.nanstd(data_p1)),
-                  'm = %.3f, s = %.3f' % (np.nanmean(data_p2),np.nanstd(data_p2)),
-                  'm = %.3f, s = %.3f' % (np.nanmean(data_p3),np.nanstd(data_p3))])
+    mstats = list(['m = %.2f, s = %.2f' % (np.nanmean(data_p1[poros>0.7]),np.nanstd(data_p1[poros>0.7])),
+                   'm = %.2f, s = %.2f' % (np.nanmean(data_p2[poros>0.7]),np.nanstd(data_p2[poros>0.7])),
+                   'm = %.2f, s = %.2f' % (np.nanmean(data_p3[poros>0.7]),np.nanstd(data_p3[poros>0.7]))])
     figure_triple_default(data=data_all,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
                           llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp1,fname=fname,
                           plot_title=([r'$stdnorm(O-F)\/(CLSM)\/[K/K]$', r'$stdnorm(O-F)\/(PEATCLSM)\/[K/K]$', r'$(stdnorm(O-F)\/(PEATCLSM) - 1) - (stdnorm(O-F)\/(CLSM) - 1)\/[K/K]$']),mstats=mstats)
@@ -968,19 +1196,91 @@ def plot_filter_diagnostics_delta(exp1, exp2, domain, root, outpath):
     fname='delta_norm_innov_mean_avg_triple'
     #my_title='norm_innov_mean: m = %.2f, s = %.2f [mm]' % (np.nanmean(data0),np.nanstd(data0))
     data_all = list([data_p1,data_p2,data_p3])
-    mstats = list(['m = %.3f, s = %.3f' % (np.nanmean(data_p1),np.nanstd(data_p1)),
-                   'm = %.3f, s = %.3f' % (np.nanmean(data_p2),np.nanstd(data_p2)),
-                   'm = %.3f, s = %.3f' % (np.nanmean(data_p3),np.nanstd(data_p3))])
+    mstats = list(['m = %.3f, s = %.3f' % (np.nanmean(data_p1[poros>0.7]),np.nanstd(data_p1[poros>0.7])),
+                   'm = %.3f, s = %.3f' % (np.nanmean(data_p2[poros>0.7]),np.nanstd(data_p2[poros>0.7])),
+                   'm = %.3f, s = %.3f' % (np.nanmean(data_p3[poros>0.7]),np.nanstd(data_p3[poros>0.7]))])
     figure_triple_default(data=data_all,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
                           llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp1,fname=fname,
                           plot_title=([r'$<norm(O-F)>\/(CLSM)\/[K]$', r'$<norm(O-F)>\/(PEATCLSM)\/[K]$', r'$<norm(O-F)>\/(PEATCLSM) - <norm(O-F)>\/(CLSM)\/[K]$']),mstats=mstats)
 
-    ########## innov var triple pct #############
+    ########## n valid innov #############
     data = np.nanmean(np.dstack((ds1['innov_var'][0,:, :].values, ds1['innov_var'][1,:, :].values, ds1['innov_var'][2,:, :].values, ds1['innov_var'][3,:, :].values)),axis=2)
-    np.place(data,n_valid_innov<100,np.nan)
+    data = data**0.5
+    np.place(data,n_valid_innov<1,np.nan)
     data_p1 = obs_M09_to_M36(data)
     data = np.nanmean(np.dstack((ds2['innov_var'][0,:, :].values, ds2['innov_var'][1,:, :].values, ds2['innov_var'][2,:, :].values, ds2['innov_var'][3,:, :].values)),axis=2)
-    np.place(data,n_valid_innov<100,np.nan)
+    data = data**0.5
+    np.place(data,n_valid_innov<1,np.nan)
+    data_p2 = obs_M09_to_M36(data)
+    data = (ds2['innov_var'][0, :, :].values - ds1['innov_var'][0,:, :].values)
+    data0 = obs_M09_to_M36(data)
+    data = (ds2['innov_var'][1, :, :].values - ds1['innov_var'][1,:, :].values)
+    data1 = obs_M09_to_M36(data)
+    data = (ds2['innov_var'][2, :, :].values - ds1['innov_var'][2,:, :].values)
+    data2 = obs_M09_to_M36(data)
+    data = (ds2['innov_var'][3, :, :].values - ds1['innov_var'][3,:, :].values)
+    data3 = obs_M09_to_M36(data)
+    data_p3 = np.nanmean(np.dstack((data0,data1,data2,data3)),axis=2)
+    data_p3 = data_p3**0.5
+    np.place(data_p3,(n_valid_innov<1) | (poros<0.7) | (np.isnan(n_valid_innov)),np.nan)
+
+    data = ds2['n_valid_innov'][:, :, :].sum(dim='species',skipna=True)/2.0
+    data = data.where(data != 0)
+    data_p3 = obs_M09_to_M36(data)
+
+    cmin = ([0,0,0])
+    cmax = ([15,15,1000])
+    fname='01_n_valid_innov'
+    #my_title='innov_var: m = %.2f, s = %.2f [mm]' % (np.nanmean(data0),np.nanstd(data0))
+    data_all = list([data_p1,data_p2,data_p3])
+    mstats = list(['m = %.1f, s = %.1f' % (np.nanmean(data_p1),np.nanstd(data_p1)),
+                   'm = %.1f, s = %.1f' % (np.nanmean(data_p2),np.nanstd(data_p2)),
+                   'm = %.1f, s = %.1f' % (np.nanmean(data_p3),np.nanstd(data_p3))])
+    figure_triple_default(data=data_all,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp1,fname=fname,
+                          plot_title=([r'$std(O-F)\/(CLSM)\/[K]$', r'$std(O-F)\/(PEATCLSM)\/[K]$', \
+                                       r'Number of assimilated observations [-]']),mstats=mstats)
+
+    ########## innov var triple #############
+    data = np.nanmean(np.dstack((ds1['innov_var'][0,:, :].values, ds1['innov_var'][1,:, :].values, ds1['innov_var'][2,:, :].values, ds1['innov_var'][3,:, :].values)),axis=2)
+    data = data**0.5
+    np.place(data,n_valid_innov<1,np.nan)
+    data_p1 = obs_M09_to_M36(data)
+    data = np.nanmean(np.dstack((ds2['innov_var'][0,:, :].values, ds2['innov_var'][1,:, :].values, ds2['innov_var'][2,:, :].values, ds2['innov_var'][3,:, :].values)),axis=2)
+    data = data**0.5
+    np.place(data,n_valid_innov<1,np.nan)
+    data_p2 = obs_M09_to_M36(data)
+    data = (ds2['innov_var'][0, :, :].values - ds1['innov_var'][0,:, :].values)
+    data0 = obs_M09_to_M36(data)
+    data = (ds2['innov_var'][1, :, :].values - ds1['innov_var'][1,:, :].values)
+    data1 = obs_M09_to_M36(data)
+    data = (ds2['innov_var'][2, :, :].values - ds1['innov_var'][2,:, :].values)
+    data2 = obs_M09_to_M36(data)
+    data = (ds2['innov_var'][3, :, :].values - ds1['innov_var'][3,:, :].values)
+    data3 = obs_M09_to_M36(data)
+    data_p3 = np.nanmean(np.dstack((data0,data1,data2,data3)),axis=2)
+    data_p3 = data_p3**0.5
+    np.place(data_p3,(n_valid_innov<1) | (poros<0.7) | (np.isnan(n_valid_innov)),np.nan)
+    cmin = ([0,0,-4])
+    cmax = ([15,15,4])
+    fname='02_delta_innov_std_avg_triple'
+    #my_title='innov_var: m = %.2f, s = %.2f [mm]' % (np.nanmean(data0),np.nanstd(data0))
+    data_all = list([data_p1,data_p2,data_p3])
+    mstats = list(['m = %.1f, s = %.1f' % (np.nanmean(data_p1),np.nanstd(data_p1)),
+                   'm = %.1f, s = %.1f' % (np.nanmean(data_p2),np.nanstd(data_p2)),
+                   'm = %.1f, s = %.1f' % (np.nanmean(data_p3[poros>0.7]),np.nanstd(data_p3[poros>0.7]))])
+    figure_triple_default(data=data_all,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp1,fname=fname,
+                          plot_title=([r'$std(O-F)\/(CLSM)\/[K]$', r'$std(O-F)\/(PEATCLSM)\/[K]$', \
+                                       r'$std(O-F)_{PEATCLSM} - std(O-F)_{CLSM}\enspace(K)$']),mstats=mstats)
+
+
+    ########## innov var triple pct #############
+    data = np.nanmean(np.dstack((ds1['innov_var'][0,:, :].values, ds1['innov_var'][1,:, :].values, ds1['innov_var'][2,:, :].values, ds1['innov_var'][3,:, :].values)),axis=2)
+    np.place(data,n_valid_innov<1,np.nan)
+    data_p1 = obs_M09_to_M36(data)
+    data = np.nanmean(np.dstack((ds2['innov_var'][0,:, :].values, ds2['innov_var'][1,:, :].values, ds2['innov_var'][2,:, :].values, ds2['innov_var'][3,:, :].values)),axis=2)
+    np.place(data,n_valid_innov<1,np.nan)
     data_p2 = obs_M09_to_M36(data)
     data = (ds2['innov_var'][0, :, :].values - ds1['innov_var'][0,:, :].values) \
            / (ds1['innov_var'][0,:, :].values)
@@ -995,7 +1295,7 @@ def plot_filter_diagnostics_delta(exp1, exp2, domain, root, outpath):
            / (ds1['innov_var'][3,:, :].values)
     data3 = obs_M09_to_M36(data)
     data_p3 = 100.*np.nanmean(np.dstack((data0,data1,data2,data3)),axis=2)
-    np.place(data_p3,(n_valid_innov<100) | (np.isnan(n_valid_innov)),np.nan)
+    np.place(data_p3,(n_valid_innov<1) | (poros<0.7) | (np.isnan(n_valid_innov)),np.nan)
     cmin = ([0,0,-60])
     cmax = ([270,270,60])
     fname='02_delta_pct_innov_var_avg_triple'
@@ -1007,7 +1307,7 @@ def plot_filter_diagnostics_delta(exp1, exp2, domain, root, outpath):
     figure_triple_default(data=data_all,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
                           llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp1,fname=fname,
                           plot_title=([r'$var(O-F)\/(CLSM)\/[K^2]$', r'$var(O-F)\/(PEATCLSM)\/[K^2]$', \
-                                       r'$var(O-F)_{PEATCLSM} - var(O-F)_{CLSM}\enspace(\%\enspace of\enspace var(O-F)_{CLSM})$']),mstats=mstats)
+                                       r'$(var(O-F)_{PEATCLSM} - var(O-F)_{CLSM})/var(O-F)_{CLSM}\enspace\times 100\enspace(\%)$']),mstats=mstats)
 
     ########## innov var triple #############
     data = np.nanmean(np.dstack((ds1['innov_var'][0,:, :].values, ds1['innov_var'][1,:, :].values, ds1['innov_var'][2,:, :].values, ds1['innov_var'][3,:, :].values)),axis=2)
@@ -1841,7 +2141,7 @@ def figure_triple_default(data,lons,lats,cmin,cmax,llcrnrlat, urcrnrlat,
         cbrange = (cmin_, cmax_)
         ax = plt.subplot(3,1,i+1)
         plt_img = np.ma.masked_invalid(data[i])
-        m=Basemap(projection='mill',llcrnrlat=llcrnrlat,urcrnrlat=urcrnrlat,llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,resolution='c')
+        m=Basemap(projection='mill',llcrnrlat=llcrnrlat,urcrnrlat=urcrnrlat,llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,resolution='l')
         m.drawcoastlines(linewidth=0.5)
         m.drawcountries(linewidth=0.5)
         parallels=np.arange(-80.0,81,5.)
