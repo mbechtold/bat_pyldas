@@ -12,7 +12,7 @@ from shutil import move
 
 # set names
 root='/staging/leuven/stg_00024/OUTPUT/michelb'
-exp='SMAP_EASEv2_M09_CLSM_SMOSfw'
+exp='SMAP_EASEv2_M09_CLSM_SMOSfw_DA'
 exp1='SMAP_EASEv2_M09_SI_CLSM_SMOSfw_DA'
 exp2='SMAP_EASEv2_M09_SI_SMOSfw_DA'
 domain='SMAP_EASEv2_M09'
@@ -33,8 +33,9 @@ proc_daily = 0
 proc_ensstd = 0
 proc_total_water = 0
 proc_daily_stats = 0
-proc_ensstd_stats = 1
+proc_ensstd_stats = 0
 proc_filter_diagnostics = 0
+proc_filter_diagnostics_gs = 1
 proc_filter_diagnostics_incr = 0
 proc_scaling = 0
 proc_tau_and_lag1_autocor = 0
@@ -159,6 +160,12 @@ if proc_filter_diagnostics==1:
     outputpath = io.paths.root +'/' + exp + '/output_postprocessed/'
     os.makedirs(outputpath,exist_ok=True)
     filter_diagnostics_evaluation(exp, domain, root, outputpath)
+
+if proc_filter_diagnostics_gs==1:
+    io = LDAS_io('ObsFcstAna', exp, domain, root)
+    outputpath = io.paths.root +'/' + exp + '/output_postprocessed/'
+    os.makedirs(outputpath,exist_ok=True)
+    filter_diagnostics_evaluation_gs(exp, domain, root, outputpath)
 
 if proc_filter_diagnostics_incr==1:
     io = LDAS_io('ObsFcstAna', exp, domain, root)
