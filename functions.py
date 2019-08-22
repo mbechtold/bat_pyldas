@@ -69,7 +69,7 @@ def read_wtd_data(insitu_path, exp, domain, root):
             folder_wtd = insitu_path + '/Brunei/processed/WTD/Daily/'
             folder_p = insitu_path + '/Brunei/processed/Precipitation/Daily/'
             site_precip = 'Brunei_Darussalam'   # For Brunei the throughfall data are the average of data from four throughfall
-            # gauges along a 100 m transect. And Therefore itś the same for all four stations.
+            # gauges along a 100 m transect. And Therefore its the same for all four stations.
 
         if first_site == True:
             # Load in situ data.
