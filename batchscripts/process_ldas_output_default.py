@@ -34,20 +34,19 @@ from shutil import move
 ##########################################
 
 def main(argv):
-    vscgroup = os.getenv("HOME").split("/")[3]
-    vscname = os.getenv("HOME").split("/")[4]
-    root='/scratch/leuven/'+vscgroup+'/'+vscname+'/output/00TEST/'
+    root='/scratch/leuven/317/vsc31786/output/00TEST/'
     exp='CONGO_M09_PEATCLSMTN_v01'
     domain='SMAP_EASEv2_M09'
-    # get vscname vscgroup
+    #vscgroup = os.getenv("HOME").split("/")[3]
+    #vscname = os.getenv("HOME").split("/")[4]
     try:
-        opts, args = getopt.getopt(argv,"hr:e:d:v:",["root=","experiment=","domain=","vscname="])
+        opts, args = getopt.getopt(argv,"hr:e:d:v:",["root=","experiment=","domain="])
     except getopt.GetoptError:
-        print('process_ldas_output_default.py -r <root> -e <outputfile> -d <domain> -v <vscname>')
+        print('process_ldas_output_default.py -r <root> -e <outputfile> -d <domain>')
         sys.exit(2)
     for opt, arg in opts:
         if opt == '-h':
-            print('process_ldas_output_default.py -r <root> -e <experiment> -d <domain> -v <vscname>')
+            print('process_ldas_output_default.py -r <root> -e <experiment> -d <domain>')
             sys.exit()
         elif opt in ("-r", "--root"):
             root = arg
@@ -55,10 +54,6 @@ def main(argv):
             experiment = arg
         elif opt in ("-d", "--domain"):
             domain = arg
-        elif opt in ("-v", "--vscname"):
-            vscname = arg
-            vscgroup = vscname[0:3]
-
 
     if proc_daily==1:
         io = LDAS_io('daily', exp, domain, root)
