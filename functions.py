@@ -1,31 +1,48 @@
 
+# collections of functions to work with LDAS output over peatlands
+# Michel Bechtold
+# November 2019, KU Leuven
 
 import os
-
+import sys
 import xarray as xr
 import pandas as pd
 import numpy as np
 import datetime as dt
 from datetime import datetime, timedelta
-
 from pyldas.grids import EASE2
 from scipy.integrate import quad
 from scipy import stats
-
 from pyldas.interface import LDAS_io
 import scipy.optimize as optimization
 import logging
 logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
 from collections import OrderedDict
-
 from pyldas.interface import LDAS_io
-
 from netCDF4 import Dataset
+from pathlib import Path
+from pyldas.functions import find_files
 
-def read_wtd_data(insitu_path, exp, domain, root):
 
-    master_table = pd.read_csv('/vsc-hard-mounts/leuven-data/329/vsc32924/in-situ_data/Mastertable/WTD_TROPICS_MASTER_TABLE.csv',sep=';')
-    blacklist = pd.read_csv('/vsc-hard-mounts/leuven-data/329/vsc32924/in-situ_data/Blacklist/Blacklisted_stations.csv', sep=';')
+def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
+    # read in in situ data of water table depth time series and master table in csv format
+    # read out modeled time series for nearest grid cell
+    #
+    # Input:
+    # insitu_path: basic path for all peatland in situ data 
+    # exp: experiment name
+    # domain: domain name
+    # root: root path of simulation experiment
+    # 
+    # Output:
+    # wtd_obs
+    # wtd_mod
+    # precip_obs
+
+
+    master_table = pd.read_csv(find_files(insitu_path, mastertable_filename),sep=';')
+    # replace black list with zeros in master table
+    # blacklist = pd.read_csv('/vsc-hard-mounts/leuven-data/329/vsc32924/in-situ_data/Blacklist/Blacklisted_stations.csv', sep=';')
 
     io = LDAS_io('daily', exp=exp, domain=domain, root=root)
     [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
@@ -38,12 +55,15 @@ def read_wtd_data(insitu_path, exp, domain, root):
 
     for i,site_ID in enumerate(master_table.iloc[:,0]):
 
-        if not site_ID.startswith('IN') and not site_ID.startswith('BR'):
-            # Only use sites in Indonesia and Brunei.
+        #if not site_ID.startswith('IN') and not site_ID.startswith('BR'):
+        # Only use sites in Indonesia and Brunei.
+        if not site_ID.startswith('CO'):
+        # Only use sites in Congo.
             continue
 
-        if blacklist.iloc[:, 0].str.contains(site_ID).any() or master_table.iloc[i,4] == 0:
-            # If site is on the blacklist (contains bad data), or if "comparison" =  0, then don include that site in the dataframe.
+        #if blacklist.iloc[:, 0].str.contains(site_ID).any() or master_table.iloc[i,4] == 0:
+        # If site is on the blacklist (contains bad data), or if "comparison" =  0, then don include that site in the dataframe.
+        if master_table.iloc[i,4] == 0:
             continue
 
         # Get lat lon from master table for site.
@@ -70,24 +90,30 @@ def read_wtd_data(insitu_path, exp, domain, root):
             folder_p = insitu_path + '/Brunei/processed/Precipitation/Daily/'
             site_precip = 'Brunei_Darussalam'   # For Brunei the throughfall data are the average of data from four throughfall
             # gauges along a 100 m transect. And Therefore its the same for all four stations.
+        elif site_ID.startswith('CO'):
+            folder_wtd = insitu_path + '/tropics/WTD/Congo/processed/Daily/'
 
         if first_site == True:
             # Load in situ data.
             # wtd:
             wtd_obs = pd.read_csv(folder_wtd + site_ID + '.csv')
-            wtd_obs.rename({'date': 'time', 'wtd': site_ID}, axis=1, inplace=True)
+            wtd_obs.columns = ['time', site_ID]
             wtd_obs['time'] = pd.to_datetime(wtd_obs['time'])
             wtd_obs = wtd_obs.set_index('time')
-            # Precipitation:
-            precip_obs = pd.read_csv(folder_p + site_precip + '.csv')
-            precip_obs.rename({'date': 'time', 'precipitation': site_ID}, axis=1, inplace=True)
-            precip_obs['time'] = pd.to_datetime(precip_obs['time'])
-            precip_obs = precip_obs.set_index('time')
+            try:
+                # Precipitation:
+                precip_obs = pd.read_csv(folder_p + site_precip + '.csv')
+                precip_obs.columns = ['time', site_ID]
+                precip_obs['time'] = pd.to_datetime(precip_obs['time'])
+                precip_obs = precip_obs.set_index('time')
+            except:
+                precip_obs = wtd_obs.copy()
+                precip_obs[site_ID]=-9999
 
             # Load model wtd data.
             wtd_mod = io.read_ts('zbar', lon, lat, lonlat=True)
-
-
+            wtd_mod = pd.DataFrame(wtd_mod)
+            wtd_mod.columns = [site_ID+b]
             # Check if overlapping data.
             df_check = pd.concat((wtd_obs, wtd_mod), axis=1)
             no_overlap = pd.isnull(df_check).any(axis=1)
@@ -97,14 +123,18 @@ def read_wtd_data(insitu_path, exp, domain, root):
             # Load in situ data.
             # wtd:
             wtd_obs_tmp = pd.read_csv(folder_wtd + site_ID + '.csv')
-            wtd_obs_tmp.rename({'date': 'time', 'wtd': site_ID}, axis=1, inplace=True)
+            wtd_obs_tmp.columns = ['time', site_ID]
             wtd_obs_tmp['time'] = pd.to_datetime(wtd_obs_tmp['time'])
             wtd_obs_tmp = wtd_obs_tmp.set_index('time')
-            # Precipitation:
-            precip_obs_tmp = pd.read_csv(folder_p + site_precip + '.csv')
-            precip_obs_tmp.rename({'date': 'time', 'precipitation': site_ID}, axis=1, inplace=True)
-            precip_obs_tmp['time'] = pd.to_datetime(precip_obs_tmp['time'])
-            precip_obs_tmp = precip_obs_tmp.set_index('time')
+            try:
+                # Precipitation:
+                precip_obs_tmp = pd.read_csv(folder_p + site_precip + '.csv')
+                precip_obs_tmp.columns = ['time', site_ID]
+                precip_obs_tmp['time'] = pd.to_datetime(precip_obs_tmp['time'])
+                precip_obs_tmp = precip_obs_tmp.set_index('time')
+            except:
+                precip_obs_tmp = wtd_obs_tmp.copy()
+                precip_obs_tmp[site_ID]=-9999
 
 
             # Load model data.
@@ -665,6 +695,46 @@ def filter_diagnostics_evaluation_gs(exp, domain, root, outputpath):
 
     ds.close()
 
+def anomaly_JulyAugust_zbar(exp, domain, root, outputpath):
+
+    if not os.path.exists(outputpath):
+        os.makedirs(outputpath,exist_ok=True)
+    result_file = outputpath + '/anomaly_JulyAugust_zbar.nc'
+    os.remove(result_file) if os.path.exists(result_file) else None
+
+    io = LDAS_io('daily',exp, domain, root)
+    # growing season
+    gs = (pd.to_datetime(io.timeseries['time'].values).month > 6) & (pd.to_datetime(io.timeseries['time'].values).month < 9)
+    cgs = (pd.to_datetime(io.timeseries['time'].values) > '2012-07-01') & (pd.to_datetime(io.timeseries['time'].values) < '2012-08-31')
+    cday = pd.to_datetime(io.timeseries['time'].values)=='2012-07-21'
+    # get poros grid and bf1 and bf2 parameters
+    [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
+    catparam = io.read_params('catparam')
+    poros = np.full(lons.shape, np.nan)
+    poros[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['poros'].values
+    bf1 = np.full(lons.shape, np.nan)
+    bf1[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['bf1'].values
+    bf2 = np.full(lons.shape, np.nan)
+    bf2[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['bf2'].values
+
+    tags = ['anomaly_zbar_21July','anomaly_zbar_JulyAugust','anomaly_tws_JulyAugust']
+
+    tc = io.grid.tilecoord
+    tg = io.grid.tilegrids
+    lons = io.grid.ease_lons[tc['i_indg'].min():(tc['i_indg'].max()+1)]
+    lats = io.grid.ease_lats[tc['j_indg'].min():(tc['j_indg'].max()+1)]
+    dimensions = OrderedDict([('lat',lats), ('lon',lons)])
+    ds = ncfile_init_incr(result_file, dimensions, tags)
+    #clons = np.all(np.vstack((lons>60.,lons<90)),axis=0)
+    #clats = np.all(np.vstack((lats>50.,lats<90)),axis=0)
+    #ds['anomaly_zbar_21July'][clats, clons] = io.images['zbar'][cday,clats,clons].values - io.images['zbar'][gs,clats,clons].mean(axis=0).values
+    #ds['anomaly_zbar_JulyAugust'][clats, clons] = io.images['zbar'][cgs,clats,clons].mean(axis=0).values - io.images['zbar'][gs,clats,clons].mean(axis=0).values
+    #ds['anomaly_tws_JulyAugust'][clats, clons] = -io.images['catdef'][cgs,clats,clons].mean(axis=0).values - (-1.0*io.images['catdef'][gs,clats,clons].mean(axis=0).values)
+    ds['anomaly_zbar_21July'][:, :] = io.images['zbar'][cday,:,:].values - io.images['zbar'][gs,:,:].mean(axis=0).values
+    ds['anomaly_zbar_JulyAugust'][:, :] = io.images['zbar'][cgs,:,:].mean(axis=0).values - io.images['zbar'][gs,:,:].mean(axis=0).values
+    ds['anomaly_tws_JulyAugust'][:, :] = -io.images['catdef'][cgs,:,:].mean(axis=0).values - (-1.0*io.images['catdef'][gs,:,:].mean(axis=0).values)
+
+    ds.close()
 
 def filter_diagnostics_evaluation_incr(exp, domain, root, outputpath):
 
@@ -1355,6 +1425,63 @@ def calc_anomaly(Ser, method='moving_average', output='anomaly', longterm=False)
         return climSer
 
     return xSer - climSer
+
+def resample_merra2(part=1, parts=1):
+    """
+    This resamples MERRA-2 data from the MERRA grid onto the EASE2 grid and stores data for each grid cell into .csv files.
+    A grid look-up table needs to be created first (method: ancillary.grid.create_lut).
+    Parameters
+    ----------
+    part : int
+        Data subset to be processed - Data can be resampled in subsets for parallelization to speed-up the processing.
+    parts : int
+        Number of parts in which to split the data for parallel processing.
+        Per default, all data are resampled at once.
+    """
+
+    paths = Paths()
+
+    dir_out = Path('/staging/leuven/stg_00024/OUTPUT/michelb/merra2')
+    if not dir_out.exists():
+        dir_out.mkdir()
+
+    path = paths.merra2_raw
+    files07 = np.array(sorted(path.rglob('*tavg1_2d_lfo_Nx.20070[78]*nc4')))
+    files08 = np.array(sorted(path.rglob('*tavg1_2d_lfo_Nx.20080[78]*nc4')))
+    files09 = np.array(sorted(path.rglob('*tavg1_2d_lfo_Nx.20090[78]*nc4')))
+    files10 = np.array(sorted(path.rglob('*tavg1_2d_lfo_Nx.20100[78]*nc4')))
+    files11 = np.array(sorted(path.rglob('*tavg1_2d_lfo_Nx.20110[78]*nc4')))
+    files12 = np.array(sorted(path.rglob('*tavg1_2d_lfo_Nx.20120[78]*nc4')))
+    files13 = np.array(sorted(path.rglob('*tavg1_2d_lfo_Nx.20130[78]*nc4')))
+    files14 = np.array(sorted(path.rglob('*tavg1_2d_lfo_Nx.20140[78]*nc4')))
+    files15 = np.array(sorted(path.rglob('*tavg1_2d_lfo_Nx.20150[78]*nc4')))
+    files16 = np.array(sorted(path.rglob('*tavg1_2d_lfo_Nx.20160[78]*nc4')))
+    files = np.concatenate([files07,files08,files09,files10,files11,files12,files13,files14,files15,files16])
+    ds = xr.open_mfdataset(files)
+    return ds
+
+class Paths(object):
+    """ This class contains the paths where data are stored and results should be written to."""
+
+    def __init__(self):
+
+        self.result_root = Path('/work/validation_good_practice')
+
+        self.data_root = Path('/data_sets')
+
+        self.lut = self.data_root / 'EASE2_grid' /'grid_lut.csv'
+
+        self.ascat = self.data_root / 'ASCAT'
+        self.smos = self.data_root / 'SMOS'
+        self.smap = self.data_root / 'SMAP'
+        self.merra2 = Path('/staging/leuven/stg_00024/input/met_forcing/MERRA2_land_forcing')
+        self.ismn = self.data_root / 'ISMN'
+
+        # ASCAT raw data should be in self.ascat with the folder names matching the H SAF version number as downloaded
+        self.smos_raw = self.smos  / 'raw' / 'MIR_SMUDP2_nc'
+        self.smap_raw = self.smos  / 'raw'
+        self.merra2_raw = self.merra2
+        self.ismn_raw = self.ismn / 'downloaded' / 'CONUS_20100101_20190101'
 
 if __name__=='__main__':
     estimae_lag1_autocorr()
