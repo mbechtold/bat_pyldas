@@ -198,6 +198,76 @@ def plot_timeseries_wtd_sfmc(exp, domain, root, outpath, lat=53, lon=25):
     plt.savefig(fname_long, dpi=150)
     plt.close()
 
+def plot_anomaly_JulyAugust_zbar(exp, domain, root, outpath):
+
+    if not os.path.exists(outpath):
+        os.makedirs(outpath,exist_ok=True)
+    fname='01_GWanomaly_2012'
+    io = LDAS_io('daily',exp, domain, root)
+    # reference month
+    #gs = (pd.to_datetime(io.timeseries['time'].values).month > 6) & (pd.to_datetime(io.timeseries['time'].values).month < 8)
+    # get poros grid and bf1 and bf2 parameters
+    [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
+    catparam = io.read_params('catparam')
+    poros = np.full(lons.shape, np.nan)
+    poros[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['poros'].values
+    bf1 = np.full(lons.shape, np.nan)
+    bf1[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['bf1'].values
+    bf2 = np.full(lons.shape, np.nan)
+    bf2[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['bf2'].values
+
+    tc = io.grid.tilecoord
+    tg = io.grid.tilegrids
+
+    #tmp = io.timeseries['zbar'][gs,:,:].values
+    #data = io.timeseries['zbar'][cday,:,:].values - tmp.mean(axis=0)
+    ## load anomaly from nc file
+    ds = xr.open_dataset("/staging/leuven/stg_00024/OUTPUT/michelb/FIG_tmp/anomaly_JulyAugust_zbar.nc")
+    data = ds['anomaly_zbar_JulyAugust'].values
+    np.place(data,poros<0.8,np.nan)
+    cmap = 'jet_r'
+    cmin = -0.5
+    cmax = 0.5
+    # open figure
+    figsize = (10,10)
+    fontsize = 14
+    cbrange = (cmin, cmax)
+
+    f = plt.figure(num=None, figsize=figsize, dpi=200, facecolor='w', edgecolor='k')
+    plt_img = np.ma.masked_invalid(data)
+    #m = Basemap(projection='lcc', llcrnrlat=50, urcrnrlat=70, llcrnrlon=60,urcrnrlon=80, resolution='l')
+    m = Basemap(projection='laea', width=2000000,height=1500000, lat_ts=50,lat_0=61,lon_0=75., resolution='l')
+    m.drawcoastlines()
+    m.drawcountries()
+    #ign = m.readshapefile('/data/leuven/317/vsc31786/gis/PEATFIRE_Ignitions_Siberia_2012_export', 'PEATFIRE_Ignitions_Siberia_2012_export')
+    m.readshapefile('/data/leuven/317/vsc31786/gis/PEATFIRE_Siberia_2012_export', 'PEATFIRE_Siberia_2012_export',linewidth=1.0,color='k')
+    #m.plot()
+    parallels = np.arange(-80.0,81,5.)
+    m.drawparallels(parallels,labels=[False,True,True,False])
+    meridians = np.arange(0.,351.,10.)
+    m.drawmeridians(meridians,labels=[True,False,False,True])
+    # color bar
+    im = m.pcolormesh(lons, lats, plt_img, cmap=cmap, latlon=True)
+    im.set_clim(vmin=cbrange[0], vmax=cbrange[1])
+    #lat=53.
+    #lon=38.5
+    #x,y = m(lon, lat)
+    #m.plot(x, y, 'ko', markersize=6,mfc='none')
+    #cmap = plt.get_cmap(cmap)
+    cb = m.colorbar(im, "bottom", size="6%", pad="15%",shrink=0.5)
+    cb.set_label("groundwater anomaly (m), 21 July 2012", fontsize=14)
+    # label size
+    for t in cb.ax.get_xticklabels():
+        t.set_fontsize(fontsize)
+    for t in cb.ax.get_yticklabels():
+        t.set_fontsize(fontsize)
+    #plt.title("groundwater table anomaly (July 2012) and  peatland wildfires", fontsize=fontsize)
+    #plt.tight_layout()
+    fname_long = os.path.join(outpath, fname+'.png')
+    plt.savefig(fname_long, dpi=f.dpi)
+    plt.close()
+
+
 
 def plot_peat_and_sites(exp, domain, root, outpath):
 
@@ -215,6 +285,7 @@ def plot_peat_and_sites(exp, domain, root, outpath):
     frac_cell = io.grid.tilecoord.frac_cell.values
     param='poros'
     # fraction of peatlands with less than 5 % open water
+    frac_peatland = np.nansum(np.all(np.vstack((frac_cell>0.5,params['poros'].values>0.8)),axis=0))/np.nansum(params['poros'].values>0.01)
     frac_peatland_less5 = np.nansum(np.all(np.vstack((frac_cell>0.95,params['poros'].values>0.8)),axis=0))/np.nansum(params['poros'].values>0.8)
     # set more than 5% open water grid cells to 1.
     params[param].values[np.all(np.vstack((frac_cell<0.95,params['poros'].values>0.8)),axis=0)] = 1.
@@ -223,12 +294,12 @@ def plot_peat_and_sites(exp, domain, root, outpath):
     img = np.full(lons.shape, np.nan)
     img[tc.j_indg.values, tc.i_indg.values] = params[param].values
     data = np.ma.masked_invalid(img)
-    fname='01_'+param
+    fname='01b_'+param
     cmin = 0
     cmax = 1
-    title='soil'
+    title='Peatland distribution'
     # open figure
-    figsize = (13, 10)
+    figsize = (0.85*13, 0.85*10)
     fontsize = 13
     f = plt.figure(num=None, figsize=figsize, dpi=300, facecolor='w', edgecolor='k')
     cmap = matplotlib.colors.ListedColormap([[255./255,193./255,7./255],[30./255,136./255,229./255]])
@@ -236,28 +307,29 @@ def plot_peat_and_sites(exp, domain, root, outpath):
     cbrange = (cmin, cmax)
     ax=plt.subplot(3,1,3)
     plt_img=np.ma.masked_invalid(data)
-    m=Basemap(projection='mill',llcrnrlat=llcrnrlat,urcrnrlat=urcrnrlat,llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,resolution='l')
+    #m=Basemap(projection='merc',llcrnrlat=llcrnrlat,urcrnrlat=urcrnrlat,llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,resolution='l')
+    m=Basemap(projection='merc',llcrnrlat=llcrnrlat,urcrnrlat=urcrnrlat,llcrnrlon=-170.,urcrnrlon=urcrnrlon,resolution='l')
     m.drawcoastlines(linewidth=0.5)
     m.drawcountries(linewidth=0.5)
     parallels=np.arange(-80.0,81,5.)
     m.drawparallels(parallels,linewidth=0.5,labels=[True,False,False,False])
     meridians=np.arange(0.,351.,20.)
     m.drawmeridians(meridians,linewidth=0.5,labels=[False,False,False,True])
-
+    m.readshapefile('/data/leuven/317/vsc31786/gis/permafrost/permafrost_boundary', 'permafrost_boundary',linewidth=1.3,color=(0./255,0./255,0./255))
     # load peatland sites
     sites = pd.read_csv('/data/leuven/317/vsc31786/FIG_tmp/00DA/20190228_M09/cluster_radius_2_bog.txt',sep=',')
     #http://lagrange.univ-lyon1.fr/docs/matplotlib/users/colormapnorms.html
     #lat=48.
     #lon=51.0
     x,y=m(sites['Lon'].values,sites['Lat'].values)
-    m.plot(x,y,'.',color=(216./255,27./255,96./255),markersize=12,markeredgewidth=2,mfc='none')
+    m.plot(x,y,'.',color=(0./255,0./255,0./255),markersize=12,markeredgewidth=1.5,mfc='none')
 
     im=m.pcolormesh(lons,lats,plt_img,cmap=cmap,latlon=True)
     im.set_clim(vmin=cbrange[0],vmax=cbrange[1])
     #cb=m.colorbar(im,"bottom",size="7%",pad="22%",shrink=0.5)
     #cb=matplotlib.pyplot.colorbar(im)
     im_ratio=np.shape(data)[0]/np.shape(data)[1]
-    cb=matplotlib.pyplot.colorbar(im,fraction=0.095*im_ratio,pad=0.02)
+    cb=matplotlib.pyplot.colorbar(im,fraction=0.13*im_ratio,pad=0.02)
     #ticklabs=cb.ax.get_yticklabels()
     #cb.ax.set_yticklabels(ticklabs,ha='right')
     #cb.ax.yaxis.set_tick_params(pad=45)#yournumbermayvary
@@ -584,26 +656,129 @@ def plot_filter_diagnostics(exp, domain, root, outpath):
     ds_ensstd = xr.open_dataset(ncpath + 'ensstd_mean.nc')
     ncpath_OL = io.paths.root +'/' + exp[:-3] + '/output_postprocessed/'
     ds_ensstd_OL = xr.open_dataset(ncpath_OL + 'ensstd_mean.nc')
+    ds_ensstd_OL_CLSM = xr.open_dataset('/staging/leuven/stg_00024/OUTPUT/michelb/SMAP_EASEv2_M09_CLSM_SMOSfw/output_postprocessed/ensstd_mean.nc')
+    ds_ensstd_DA_CLSM = xr.open_dataset('/staging/leuven/stg_00024/OUTPUT/michelb/SMAP_EASEv2_M09_CLSM_SMOSfw_DA/output_postprocessed/ensstd_mean.nc')
 
     n_valid_incr = ds['n_valid_incr'][:,:].values
     np.place(n_valid_incr,n_valid_incr==0,np.nan)
     catparam = io.read_params('catparam')
     poros = np.full(lons.shape, np.nan)
     poros[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['poros'].values
+
+
+    ### ensstd vs ubRMSD plot
+
+    master_table = pd.read_csv('/vsc-hard-mounts/leuven-data/317/vsc31786/FIG_tmp/00DA/20190228_M09/wtd_stats.txt',sep=',')
+    ensstd_OL = np.zeros([59])
+    ensstd_OL_CLSM = np.zeros([59])
+    ensstd_DA = np.zeros([59])
+    ensstd_DA_CLSM = np.zeros([59])
+
+    for i,site_ID in enumerate(master_table.iloc[:,0]):
+
+        #if not site_ID.startswith('IN') and not site_ID.startswith('BR'):
+        #    # Only use sites in Indonesia and Brunei.
+        #    continue
+
+        #if blacklist.iloc[:, 0].str.contains(site_ID).any() or master_table.iloc[i,4] == 0:
+        #    # If site is on the blacklist (contains bad data), or if "comparison" =  0, then don include that site in the dataframe.
+        #    continue
+
+        # Get lat lon from master table for site.
+        lon = master_table.iloc[i,3]
+        lat = master_table.iloc[i,2]
+
+        # Get porosity for site lon lat.
+        # Get M09 rowcol with data.
+        scol, srow = io.grid.lonlat2colrow(lon, lat, domain=True)
+        crow = np.array([1, -1, 1, -1, 0, 0,  2, -2, 2, -2, 2, -2, 0,  0,  3, -3, 3, -3, 3, -3, 3, -3, 0, 0,  4, -4, 4, -4, 4, -4, 4, -4, 4, -4, 0,0]) 
+        ccol = np.array([0, 0,  1, -1, 1, -1, 0, 0,  1, -1, 2, -2, -2, 2,  1, -1, 2, -2, 3, -3, 0,  0, -3, 3, 1, -1, 2, -2, 3, -3, 4, -4, 0, 0, -4,4]) 
+        row = srow
+        col = scol
+        print("i: "+str(i))
+        continue_yes=0
+        dp=0
+        for p in range(0,70):
+            if p==35:
+                crow = crow*(-1)
+                dp = -35
+            print("p: "+str(p))
+            # Get poros for col row.
+            siteporos = poros[row, col]
+            print(siteporos)
+            if siteporos <= 0.7:
+                row = srow + crow[p+dp]
+                col = scol + ccol[p+dp]
+            else:
+                ensstd_OL[i] = ds_ensstd_OL['zbar'].values[row,col]
+                ensstd_DA[i] = ds_ensstd['zbar'].values[row,col]
+                ensstd_OL_CLSM[i] = ds_ensstd_OL_CLSM['zbar'].values[row,col]
+                ensstd_DA_CLSM[i] = ds_ensstd_DA_CLSM['zbar'].values[row,col]
+                break
+
+    ubRMSD_OL = master_table.iloc[:,14]
+    ubRMSD_DA = master_table.iloc[:,15]
+    ubRMSD_OL_CLSM = master_table.iloc[:,12]
+    ubRMSD_DA_CLSM = master_table.iloc[:,13]
+    # open figure
+    figsize = (5, 5)
+    fontsize = 10
+    f = plt.figure(num=None, figsize=figsize, dpi=150, facecolor='w', edgecolor='k')
+    plt.plot(ubRMSD_OL, ensstd_OL, 'o', markersize=7, markeredgecolor='royalblue', markerfacecolor='whitesmoke', label='OL')
+    plt.plot(ubRMSD_DA, ensstd_DA, 'o', markersize=7, markeredgecolor='lawngreen', markerfacecolor='whitesmoke', label='DA')
+    plt.plot(np.array([0,0.25]),np.array([0,0.25]),'k-')
+    plt.xlabel('ubRMSD (m)')
+    plt.ylabel('<ensstd> (m)')
+    plt.legend()
+    fname_long = os.path.join(outpath, 'ubRMSD_ensstd_PEATCLSM.png')
+    plt.tight_layout()
+    plt.savefig(fname_long, dpi=f.dpi)
+    plt.close()      
+    # open figure
+    figsize = (5, 5)
+    fontsize = 10
+    f = plt.figure(num=None, figsize=figsize, dpi=150, facecolor='w', edgecolor='k')
+    NSE_OL = 1 - np.sum((ensstd_OL-ubRMSD_OL)**2.0)/np.sum((ubRMSD_OL-np.mean(ubRMSD_OL))**2.0)
+    NSE_DA = 1 - np.sum((ensstd_DA-ubRMSD_DA)**2.0)/np.sum((ubRMSD_DA-np.mean(ubRMSD_DA))**2.0)
+    NSE_OL_formatted = '%.4f' % (NSE_OL)
+    NSE_DA_formatted = '%.4f' % (NSE_DA)
+    RMSD_OL = np.nanmean((ensstd_OL-ubRMSD_OL)**2.0)**0.5
+    RMSD_DA = np.nanmean((ensstd_DA-ubRMSD_DA)**2.0)**0.5
+    RMSD_OL_formatted = '%.4f' % (RMSD_OL)
+    RMSD_DA_formatted = '%.4f' % (RMSD_DA)
+    RMSD_OL_CLSM = np.nanmean((ensstd_OL_CLSM-ubRMSD_OL_CLSM)**2.0)**0.5
+    RMSD_DA_CLSM = np.nanmean((ensstd_DA_CLSM-ubRMSD_DA_CLSM)**2.0)**0.5
+    RMSD_OL_CLSM_formatted = '%.4f' % (RMSD_OL_CLSM)
+    RMSD_DA_CLSM_formatted = '%.4f' % (RMSD_DA_CLSM)
+    #NSE_OL = 1 - np.sum((ensstd_OL-ubRMSD_OL)**2.0)/np.sum((ubRMSD_OL-np.mean(ubRMSD_OL))**2.0)
+    #NSE_DA = 1 - np.sum((ensstd_DA-ubRMSD_DA)**2.0)/np.sum((ubRMSD_DA-np.mean(ubRMSD_DA))**2.0)
+    plt.plot(ubRMSD_OL, ensstd_OL, 'o', markersize=7, markeredgecolor='royalblue', markerfacecolor='whitesmoke', label='OL (PEATCLSM); ' + 'RMSD = ' + RMSD_OL_formatted)
+    plt.plot(ubRMSD_DA, ensstd_DA, 'o', markersize=7, markeredgecolor='lawngreen', markerfacecolor='whitesmoke', label='DA (PEATCLSM); ' + 'RMSD = ' + RMSD_DA_formatted)
+    plt.plot(ubRMSD_OL_CLSM, ensstd_OL_CLSM, 'D', markersize=7, markeredgecolor='royalblue', markerfacecolor='whitesmoke', label='OL (CLSM); ' + 'RMSD = ' + RMSD_OL_CLSM_formatted)
+    plt.plot(ubRMSD_DA_CLSM, ensstd_DA_CLSM, 'D', markersize=7, markeredgecolor='lawngreen', markerfacecolor='whitesmoke', label='DA (CLSM); ' + 'RMSD = ' + RMSD_DA_CLSM_formatted)
+    plt.plot(np.array([0,1.1]),np.array([0,1.1]),'k-')
+    plt.xlabel('ubRMSD (m)')
+    plt.ylabel('<ensstd> (m)')
+    plt.legend()
+    fname_long = os.path.join(outpath, 'ubRMSD_ensstd_both.png')
+    plt.tight_layout()
+    plt.savefig(fname_long, dpi=f.dpi)
+    plt.close()        
+
     ########## ensstd OL DA mean #############
     data = ds_ensstd_OL['zbar'][:, :].values
     np.place(data,n_valid_incr<100,np.nan)
     data_p1 = 1000*data
     data = ds_ensstd['zbar'][:, :].values
-    np.place(data,n_valid_incr<100,np.nan)
+    np.place(data,n_valid_incr<1,np.nan)
     data_p2 = 1000*data
     data = data_p2-data_p1
-    np.place(data,n_valid_incr<100,np.nan)
+    np.place(data,n_valid_incr<1,np.nan)
     data_p3 = data
-    np.place(data_p3,(n_valid_incr<100) | (np.isnan(n_valid_incr) | (poros<0.7)),np.nan)
+    np.place(data_p3,(n_valid_incr<1) | (np.isnan(n_valid_incr) | (poros<0.7)),np.nan)
     cmin = ([None,None,-40])
     cmax = ([None,None,40])
-    fname='04_delta_OL_DA_ensstd_zbar_mean_triple'
+    fname='04b_delta_OL_DA_ensstd_zbar_mean_triple'
     #my_title='srfexc: m = %.2f, s = %.2f [mm]' % (np.nanmean(data0),np.nanstd(data0))
     data_all = list([data_p1,data_p2,data_p3])
     mstats = list(['m = %.1f, s = %.1f' % (np.nanmean(data_p1),np.nanstd(data_p1)),
@@ -613,6 +788,27 @@ def plot_filter_diagnostics(exp, domain, root, outpath):
                           llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,
                           plot_title=([r'$<ensstd(\overline{z}_{WT})>\/(OL\/PEATCLSM)\/[m]$', r'$<ensstd(zbar)>\/(DA\/PEATCLSM)\/[m]$', \
                                        r'$<\!ensstd(\overline{z}_{WT,DA})\!> - <\!ensstd(\overline{z}_{WT,OL})\!>\enspace(mm)$']),mstats=mstats)
+
+    print(ddd)
+    # hist figure
+    figsize = (7.0, 6)
+    plt.rcParams.update({'font.size': 33})
+    f = plt.figure(num=None, figsize=figsize, dpi=100, facecolor='w', edgecolor='k')
+
+    h1 = seaborn.distplot( data_p1[(poros>0.7) & (np.isnan(data_p1)==False)],hist=False, \
+                          kde_kws={"color": (0.42745098, 0.71372549, 1. ), "lw": 6, "label": "OL"}).set(xlim=(22, 90.))
+    h2 = seaborn.distplot(data_p2[(poros>0.7) & (np.isnan(data_p2)==False)],hist=False, \
+                          kde_kws={"color": (0.14117647, 1., 0.14117647), "lw": 6, "label": "DA"}).set(xlim=(22, 90.))
+    plt.ylim(0., 0.10)
+    plt.yticks((0.0,0.1))
+    plt.xlabel('$ensstd(\overline{z}_{WT})\enspace(mm)$')
+    plt.ylabel('Density')
+    plt.legend(frameon=False)
+    plt.tight_layout()
+    fname = 'hist_ensstd_zWT'
+    fname_long = os.path.join(outpath, fname+'.png')
+    plt.savefig(fname_long, dpi=f.dpi)
+    #plt.savefig(fname_long)
 
     ############## n_valid_innov
     data = ds['n_valid_innov'][:, :, :].sum(dim='species',skipna=True)/2.0/N_days
@@ -1000,7 +1196,7 @@ def plot_filter_diagnostics_delta(exp1, exp2, domain, root, outpath):
     poros = np.full(lons.shape, np.nan)
     poros[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['poros'].values
 
-
+    
     ########## innov var triple #############
     data = np.nanmean(np.dstack((ds1['innov_var'][0,:, :].values, ds1['innov_var'][1,:, :].values, ds1['innov_var'][2,:, :].values, ds1['innov_var'][3,:, :].values)),axis=2)
     np.place(data,n_valid_innov<1,np.nan)
@@ -1020,7 +1216,7 @@ def plot_filter_diagnostics_delta(exp1, exp2, domain, root, outpath):
     np.place(data_p3,(n_valid_innov<1) | (poros<0.7) | (np.isnan(n_valid_innov)),np.nan)
     cmin = ([0,0,-15])
     cmax = ([270,270,15])
-    fname='02_delta_innov_var_avg_triple'
+    fname='02b_delta_innov_var_avg_triple'
     #my_title='innov_var: m = %.2f, s = %.2f [mm]' % (np.nanmean(data0),np.nanstd(data0))
     data_all = list([data_p1,data_p2,data_p3])
     mstats = list(['m = %.1f, s = %.1f' % (np.nanmean(data_p1),np.nanstd(data_p1)),
@@ -1030,43 +1226,50 @@ def plot_filter_diagnostics_delta(exp1, exp2, domain, root, outpath):
                           llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp1,fname=fname,
                           plot_title=([r'$var(O-F)\/(CLSM)\/[K^2]$', r'$var(O-F)\/(PEATCLSM)\/[K^2]$', \
                                        r'$var(O-F)_{PEATCLSM} - var(O-F)_{CLSM}\enspace(K^2)$']),mstats=mstats)
-    # open figure
-    figsize = (6, 6)
-    fontsize = 13
-    #f = plt.figure(num=None, figsize=figsize, dpi=300, facecolor='w', edgecolor='k')
-    seaborn.distplot(data_p1[(poros>0.7) & (np.isnan(data_p1)==False)],hist=False, kde_kws={'clip': (0.0, 20.0)})
-    seaborn.distplot(data_p2[(poros>0.7) & (np.isnan(data_p2)==False)],hist=False, kde_kws={'clip': (0.0, 20.0)})
+    # hist figure
+    figsize = (7.0, 6)
+    plt.rcParams.update({'font.size': 33})
+    f = plt.figure(num=None, figsize=figsize, dpi=100, facecolor='w', edgecolor='k')
+
+    h1 = seaborn.distplot(data_p1[(poros>0.7) & (np.isnan(data_p1)==False)],hist=False, \
+                          kde_kws={"color": (0.42745098, 0.71372549, 1. ), "lw": 6, "label": "CLSM", 'clip': (0.0, 20.0)}).set(xlim=(0, 22.))
+    h2 = seaborn.distplot(data_p2[(poros>0.7) & (np.isnan(data_p2)==False)],hist=False, \
+                          kde_kws={"color": (0.14117647, 1., 0.14117647), "lw": 6, "label": "PEATCLSM", 'clip': (0.0, 20.0)}).set(xlim=(0, 22.))
+    plt.ylim(0., 0.28)
     plt.xlabel('$var(O-F)\enspace(K^2)$')
     plt.ylabel('Density')
-    plt.legend(['CLSM', 'PEATCLSM'])
+    plt.legend(frameon=False)
+    plt.tight_layout()
+    #plt.show()
+    #plt.legend((h1,h2),('CLSM', 'PEATCLSM'))
 
     #plt.vlines(x = np.nanmean(data_p1[poros>0.7]), ymin=0.0, ymax=0.1,
     #           color = 'red', linestyle = 'dotted', linewidth = 2)
 
     #plt.vlines(x = np.nanmean(data_p2[poros>0.7]), ymin=0.0, ymax=0.1,
     #            color = 'blue', linestyle = 'dotted', linewidth = 2)
-    fname = '02_n_valid_number'
+    fname = 'hist_var_O-F'
     fname_long = os.path.join(outpath, fname+'.png')
-    #plt.savefig(fname_long, dpi=f.dpi)
-    plt.savefig(fname_long)
+    plt.savefig(fname_long, dpi=f.dpi)
+    plt.rcParams.update({'font.size': 10})
+    #plt.savefig(fname_long)
 
-    print(ddd)
     ########## catdef var pct #############
     data = (ds1['incr_catdef_var'][:, :].values +  ds1['incr_rzexc_var'][:, :].values +  ds1['incr_srfexc_var'][:, :].values)**0.5
-    np.place(data,n_valid_incr<100,np.nan)
+    np.place(data,n_valid_incr<1,np.nan)
     data_p1 = data
     data = (ds2['incr_catdef_var'][:, :].values +  ds2['incr_rzexc_var'][:, :].values +  ds2['incr_srfexc_var'][:, :].values)**0.5
-    np.place(data,n_valid_incr<100,np.nan)
+    np.place(data,n_valid_incr<1,np.nan)
     data_p2 = data
     data = (data_p2 - data_p1) \
            / (data_p1 + data_p2)
     data_p3 = 100*data
     data = (data_p2 - data_p1)
     data_p3 = data
-    np.place(data_p3,(n_valid_incr<100) | np.isnan(n_valid_incr) | (poros<0.7),np.nan)
+    np.place(data_p3,(n_valid_incr<1) | np.isnan(n_valid_incr) | (poros<0.7),np.nan)
     cmin = ([None,None,-10])
     cmax = ([None,None,10])
-    fname='03_delta_std_incr_catdef_triple'
+    fname='03b_delta_std_incr_catdef_triple'
     #my_title='total_water: m = %.2f, s = %.2f [mm]' % (np.nanmean(data0),np.nanstd(data0))
     data_all = list([data_p1,data_p2,data_p3])
     mstats = list(['m = %.1f, s = %.1f' % (np.nanmean(data_p1),np.nanstd(data_p1)),
@@ -1074,17 +1277,160 @@ def plot_filter_diagnostics_delta(exp1, exp2, domain, root, outpath):
                   'm = %.1f, s = %.1f' % (np.nanmean(data_p3),np.nanstd(data_p3))])
     figure_triple_default(data=data_all,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
                           llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp1,fname=fname,
-                          plot_title=([r'$<std(catdef)\/(CLSM)\/[mm^2]$',r'$<std(catdef)\/(PEATCLSM)\/[mm^2]$', \
+                          plot_title=([r'$<std(catdef)\/(CLSM)\/[mm]$',r'$<std(catdef)\/(PEATCLSM)\/[mm]$', \
                                        r'$std(\Delta wtot_{PEATCLSM}) - std(\Delta wtot_{CLSM})\enspace(mm)$']),mstats=mstats)
+
+    # hist figure
+    figsize = (7.0, 6)
+    plt.rcParams.update({'font.size': 33})
+    f = plt.figure(num=None, figsize=figsize, dpi=100, facecolor='w', edgecolor='k')
+
+    h1 = seaborn.distplot(data_p1[(poros>0.7) & (np.isnan(data_p1)==False)],hist=False, \
+                          kde_kws={"color": (0.42745098, 0.71372549, 1. ), "lw": 6, "label": "CLSM", 'clip': (0.0, 20.0)}).set(xlim=(0, 16.))
+    h2 = seaborn.distplot(data_p2[(poros>0.7) & (np.isnan(data_p2)==False)],hist=False, \
+                          kde_kws={"color": (0.14117647, 1., 0.14117647), "lw": 6, "label": "PEATCLSM", 'clip': (0.0, 20.0)}).set(xlim=(0, 16.))
+    plt.ylim(0., 0.33)
+    plt.xlabel('$std(\Delta wtot)\enspace(mm)$')
+    plt.ylabel('Density')
+    plt.legend(frameon=False)
+    plt.tight_layout()
+    fname = 'hist_std_wtot'
+    fname_long = os.path.join(outpath, fname+'.png')
+    plt.savefig(fname_long, dpi=f.dpi)
+    plt.rcParams.update({'font.size': 10})
+    #plt.savefig(fname_long)
+
+    print(ddd)
+    ########## n valid innov #############
+    data = np.nanmean(np.dstack((ds1['innov_var'][0,:, :].values, ds1['innov_var'][1,:, :].values, ds1['innov_var'][2,:, :].values, ds1['innov_var'][3,:, :].values)),axis=2)
+    data = data**0.5
+    np.place(data,n_valid_innov<1,np.nan)
+    data_p1 = obs_M09_to_M36(data)
+    data = np.nanmean(np.dstack((ds2['innov_var'][0,:, :].values, ds2['innov_var'][1,:, :].values, ds2['innov_var'][2,:, :].values, ds2['innov_var'][3,:, :].values)),axis=2)
+    data = data**0.5
+    np.place(data,n_valid_innov<1,np.nan)
+    data_p2 = obs_M09_to_M36(data)
+    data = (ds2['innov_var'][0, :, :].values - ds1['innov_var'][0,:, :].values)
+    data0 = obs_M09_to_M36(data)
+    data = (ds2['innov_var'][1, :, :].values - ds1['innov_var'][1,:, :].values)
+    data1 = obs_M09_to_M36(data)
+    data = (ds2['innov_var'][2, :, :].values - ds1['innov_var'][2,:, :].values)
+    data2 = obs_M09_to_M36(data)
+    data = (ds2['innov_var'][3, :, :].values - ds1['innov_var'][3,:, :].values)
+    data3 = obs_M09_to_M36(data)
+    data_p3 = np.nanmean(np.dstack((data0,data1,data2,data3)),axis=2)
+    data_p3 = data_p3**0.5
+    np.place(data_p3,(n_valid_innov<1) | (poros<0.7) | (np.isnan(n_valid_innov)),np.nan)
+
+    data = ds2['n_valid_innov'][:, :, :].sum(dim='species',skipna=True)/2.0
+    data = data.where(data != 0)
+    data_p3 = obs_M09_to_M36(data)
+
+    cmin = ([0,0,0])
+    cmax = ([15,15,1000])
+    fname='01_n_valid_innov'
+    #my_title='innov_var: m = %.2f, s = %.2f [mm]' % (np.nanmean(data0),np.nanstd(data0))
+    data_all = list([data_p1,data_p2,data_p3])
+    mstats = list(['m = %.1f, s = %.1f' % (np.nanmean(data_p1),np.nanstd(data_p1)),
+                   'm = %.1f, s = %.1f' % (np.nanmean(data_p2),np.nanstd(data_p2)),
+                   'm = %.1f, s = %.1f' % (np.nanmean(data_p3),np.nanstd(data_p3))])
+    figure_triple_default(data=data_all,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp1,fname=fname,
+                          plot_title=([r'$std(O-F)\/(CLSM)\/[K]$', r'$std(O-F)\/(PEATCLSM)\/[K]$', \
+                                       r'Number of assimilated observations (-)']),mstats=mstats)
+
+    ########## innov var #############
+    data = (ds2['innov_var'][0, :, :].values - ds1['innov_var'][0,:, :].values) \
+           / (ds1['innov_var'][0,:, :].values)
+    np.place(data,ds1['n_valid_innov'][0, :,:]<1,np.nan)
+    data0 = obs_M09_to_M36(data)
+
+    data = (ds2['innov_var'][1, :, :].values - ds1['innov_var'][1,:, :].values) \
+           / (ds1['innov_var'][1,:, :].values)
+    np.place(data,ds1['n_valid_innov'][1,:,:]<1,np.nan)
+    data1 = obs_M09_to_M36(data)
+
+    data = (ds2['innov_var'][2, :, :].values - ds1['innov_var'][2,:, :].values) \
+           / (ds1['innov_var'][2,:, :].values)
+    np.place(data,ds1['n_valid_innov'][2,:,:]<1,np.nan)
+    data2 = obs_M09_to_M36(data)
+
+    data = (ds2['innov_var'][3, :, :].values - ds1['innov_var'][3,:, :].values) \
+           / (ds1['innov_var'][3,:, :].values)
+    np.place(data,ds1['n_valid_innov'][3,:,:]<1,np.nan)
+    data3 = obs_M09_to_M36(data)
+
+    data = np.nanmean(np.dstack((data0,data1,data2,data3)),axis=2)
+    # mean over peatlands
+    catparam = io.read_params('catparam')
+    poros = np.full(lons.shape, np.nan)
+    poros[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['poros'].values
+    mean_peat = np.nanmean(data[poros>0.7])
+    mean_peat_SI = np.nanmean(data[(poros>0.7)&(lons>63)&(lons<87)&(lats>56)&(lats<67)])
+    mean_peat_HU = np.nanmean(data[(poros>0.7)&(lons>-95)&(lons<-80)&(lats>50)&(lats<60)])
+    print('mean SI and HU')
+    print(mean_peat)
+    print(mean_peat_SI)
+    print(mean_peat_HU)
+    
+    worse = np.where(data[poros>0.7] > 0.0)[0]
+    better = np.where(data[poros>0.7] < 0.0)[0]
+    np.size(better)/(np.size(better)+np.size(worse))
+    cmin = -50
+    cmax = 50
+    fname='delta_innov_var_pct'
+    data = data*100.
+    my_title='delta var(O-F): m (peat) = %.1f, s (peat) = %.1f (pct)' % (np.nanmean(data[poros>0.7]),np.nanstd(data[poros>0.7]))
+    figure_single_default(data=100*data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp1,fname=fname,
+                          plot_title=my_title)
+
+    ########## innov var triple #############
+    data = np.nanmean(np.dstack((ds1['innov_var'][0,:, :].values, ds1['innov_var'][1,:, :].values, ds1['innov_var'][2,:, :].values, ds1['innov_var'][3,:, :].values)),axis=2)
+    np.place(data,n_valid_innov<100,np.nan)
+    data_p1 = obs_M09_to_M36(data)
+    data = np.nanmean(np.dstack((ds2['innov_var'][0,:, :].values, ds2['innov_var'][1,:, :].values, ds2['innov_var'][2,:, :].values, ds2['innov_var'][3,:, :].values)),axis=2)
+    np.place(data,n_valid_innov<100,np.nan)
+    data_p2 = obs_M09_to_M36(data)
+    data = ds2['innov_var'][0, :, :].values - ds1['innov_var'][0,:, :].values
+    data0 = obs_M09_to_M36(data)
+    data = ds2['innov_var'][1, :, :].values - ds1['innov_var'][1,:, :].values
+    data1 = obs_M09_to_M36(data)
+    data = ds2['innov_var'][2, :, :].values - ds1['innov_var'][2,:, :].values
+    data2 = obs_M09_to_M36(data)
+    data = ds2['innov_var'][3, :, :].values - ds1['innov_var'][3,:, :].values
+    data3 = obs_M09_to_M36(data)
+    data_p3 = np.nanmean(np.dstack((data0,data1,data2,data3)),axis=2)
+    np.place(data_p3,(n_valid_innov<1) | (np.isnan(n_valid_innov)),np.nan)
+    mean_peat = np.nanmean(data_p3[poros>0.7])
+    mean_peat_SI = np.nanmean(data_p3[(poros>0.7)&(lons>63)&(lons<87)&(lats>56)&(lats<67)])
+    mean_peat_HU = np.nanmean(data_p3[(poros>0.7)&(lons>-95)&(lons<-80)&(lats>50)&(lats<60)])
+    print('mean SI and HU')
+    print(mean_peat)
+    print(mean_peat_SI)
+    print(mean_peat_HU)
+    print(ddd)
+    cmin = ([0,0,None])
+    cmax = ([270,270,None])
+    fname='02_delta_innov_var_avg_triple'
+    #my_title='innov_var: m = %.2f, s = %.2f [mm]' % (np.nanmean(data0),np.nanstd(data0))
+    data_all = list([data_p1,data_p2,data_p3])
+    mstats = list(['m = %.3f, s = %.3f' % (np.nanmean(data_p1),np.nanstd(data_p1)),
+                   'm = %.3f, s = %.3f' % (np.nanmean(data_p2),np.nanstd(data_p2)),
+                   'm = %.3f, s = %.3f' % (np.nanmean(data_p3),np.nanstd(data_p3))])
+    figure_triple_default(data=data_all,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp1,fname=fname,
+                          plot_title=([r'$var(O-F)\/(CLSM)\/[K^2]$', r'$var(O-F)\/(PEATCLSM)\/[K^2]$', r'$var(O-F)\/(PEATCLSM) - var(O-F)\/(CLSM)\/[K^2]$']),mstats=mstats)
+
     ########## norm innov std triple #############
     data = np.nanmean(np.dstack((ds1['norm_innov_var'][0,:, :].values, ds1['norm_innov_var'][1,:, :].values, ds1['norm_innov_var'][2,:, :].values, ds1['norm_innov_var'][3,:, :].values)),axis=2)
-    np.place(data,(n_valid_innov<100) | (np.isnan(n_valid_innov)),np.nan)
+    np.place(data,(n_valid_innov<1) | (np.isnan(n_valid_innov)),np.nan)
     data_p1 = obs_M09_to_M36(data)**0.5
     data = np.nanmean(np.dstack((ds2['norm_innov_var'][0,:, :].values, ds2['norm_innov_var'][1,:, :].values, ds2['norm_innov_var'][2,:, :].values, ds2['norm_innov_var'][3,:, :].values)),axis=2)
-    np.place(data,(n_valid_innov<100) | (np.isnan(n_valid_innov)),np.nan)
+    np.place(data,(n_valid_innov<1) | (np.isnan(n_valid_innov)),np.nan)
     data_p2 = obs_M09_to_M36(data)**0.5
     data_p3 = (data_p2-1.) - (data_p1-1.)
-    np.place(data_p3,(n_valid_innov<100) | (np.isnan(n_valid_innov)),np.nan)
+    np.place(data_p3,(n_valid_innov<1) | (np.isnan(n_valid_innov)),np.nan)
     cmin = ([0,0,None])
     cmax = ([3.0,3.0,None])
     fname='delta_norm_innov_std_avg_triple'
@@ -1096,6 +1442,7 @@ def plot_filter_diagnostics_delta(exp1, exp2, domain, root, outpath):
     figure_triple_default(data=data_all,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
                           llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp1,fname=fname,
                           plot_title=([r'$stdnorm(O-F)\/(CLSM)\/[K/K]$', r'$stdnorm(O-F)\/(PEATCLSM)\/[K/K]$', r'$(stdnorm(O-F)\/(PEATCLSM) - 1) - (stdnorm(O-F)\/(CLSM) - 1)\/[K/K]$']),mstats=mstats)
+
 
     ########## innov std triple #############
     data = np.nanmean(np.dstack((ds1['innov_var'][0,:, :].values**0.5, ds1['innov_var'][1,:, :].values**0.5, ds1['innov_var'][2,:, :].values**0.5, ds1['innov_var'][3,:, :].values**0.5)),axis=2)
@@ -1203,43 +1550,6 @@ def plot_filter_diagnostics_delta(exp1, exp2, domain, root, outpath):
                           llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp1,fname=fname,
                           plot_title=([r'$<norm(O-F)>\/(CLSM)\/[K]$', r'$<norm(O-F)>\/(PEATCLSM)\/[K]$', r'$<norm(O-F)>\/(PEATCLSM) - <norm(O-F)>\/(CLSM)\/[K]$']),mstats=mstats)
 
-    ########## n valid innov #############
-    data = np.nanmean(np.dstack((ds1['innov_var'][0,:, :].values, ds1['innov_var'][1,:, :].values, ds1['innov_var'][2,:, :].values, ds1['innov_var'][3,:, :].values)),axis=2)
-    data = data**0.5
-    np.place(data,n_valid_innov<1,np.nan)
-    data_p1 = obs_M09_to_M36(data)
-    data = np.nanmean(np.dstack((ds2['innov_var'][0,:, :].values, ds2['innov_var'][1,:, :].values, ds2['innov_var'][2,:, :].values, ds2['innov_var'][3,:, :].values)),axis=2)
-    data = data**0.5
-    np.place(data,n_valid_innov<1,np.nan)
-    data_p2 = obs_M09_to_M36(data)
-    data = (ds2['innov_var'][0, :, :].values - ds1['innov_var'][0,:, :].values)
-    data0 = obs_M09_to_M36(data)
-    data = (ds2['innov_var'][1, :, :].values - ds1['innov_var'][1,:, :].values)
-    data1 = obs_M09_to_M36(data)
-    data = (ds2['innov_var'][2, :, :].values - ds1['innov_var'][2,:, :].values)
-    data2 = obs_M09_to_M36(data)
-    data = (ds2['innov_var'][3, :, :].values - ds1['innov_var'][3,:, :].values)
-    data3 = obs_M09_to_M36(data)
-    data_p3 = np.nanmean(np.dstack((data0,data1,data2,data3)),axis=2)
-    data_p3 = data_p3**0.5
-    np.place(data_p3,(n_valid_innov<1) | (poros<0.7) | (np.isnan(n_valid_innov)),np.nan)
-
-    data = ds2['n_valid_innov'][:, :, :].sum(dim='species',skipna=True)/2.0
-    data = data.where(data != 0)
-    data_p3 = obs_M09_to_M36(data)
-
-    cmin = ([0,0,0])
-    cmax = ([15,15,1000])
-    fname='01_n_valid_innov'
-    #my_title='innov_var: m = %.2f, s = %.2f [mm]' % (np.nanmean(data0),np.nanstd(data0))
-    data_all = list([data_p1,data_p2,data_p3])
-    mstats = list(['m = %.1f, s = %.1f' % (np.nanmean(data_p1),np.nanstd(data_p1)),
-                   'm = %.1f, s = %.1f' % (np.nanmean(data_p2),np.nanstd(data_p2)),
-                   'm = %.1f, s = %.1f' % (np.nanmean(data_p3),np.nanstd(data_p3))])
-    figure_triple_default(data=data_all,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
-                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp1,fname=fname,
-                          plot_title=([r'$std(O-F)\/(CLSM)\/[K]$', r'$std(O-F)\/(PEATCLSM)\/[K]$', \
-                                       r'Number of assimilated observations [-]']),mstats=mstats)
 
     ########## innov var triple #############
     data = np.nanmean(np.dstack((ds1['innov_var'][0,:, :].values, ds1['innov_var'][1,:, :].values, ds1['innov_var'][2,:, :].values, ds1['innov_var'][3,:, :].values)),axis=2)
@@ -1309,34 +1619,6 @@ def plot_filter_diagnostics_delta(exp1, exp2, domain, root, outpath):
                           plot_title=([r'$var(O-F)\/(CLSM)\/[K^2]$', r'$var(O-F)\/(PEATCLSM)\/[K^2]$', \
                                        r'$(var(O-F)_{PEATCLSM} - var(O-F)_{CLSM})/var(O-F)_{CLSM}\enspace\times 100\enspace(\%)$']),mstats=mstats)
 
-    ########## innov var triple #############
-    data = np.nanmean(np.dstack((ds1['innov_var'][0,:, :].values, ds1['innov_var'][1,:, :].values, ds1['innov_var'][2,:, :].values, ds1['innov_var'][3,:, :].values)),axis=2)
-    np.place(data,n_valid_innov<100,np.nan)
-    data_p1 = obs_M09_to_M36(data)
-    data = np.nanmean(np.dstack((ds2['innov_var'][0,:, :].values, ds2['innov_var'][1,:, :].values, ds2['innov_var'][2,:, :].values, ds2['innov_var'][3,:, :].values)),axis=2)
-    np.place(data,n_valid_innov<100,np.nan)
-    data_p2 = obs_M09_to_M36(data)
-    data = ds2['innov_var'][0, :, :].values - ds1['innov_var'][0,:, :].values
-    data0 = obs_M09_to_M36(data)
-    data = ds2['innov_var'][1, :, :].values - ds1['innov_var'][1,:, :].values
-    data1 = obs_M09_to_M36(data)
-    data = ds2['innov_var'][2, :, :].values - ds1['innov_var'][2,:, :].values
-    data2 = obs_M09_to_M36(data)
-    data = ds2['innov_var'][3, :, :].values - ds1['innov_var'][3,:, :].values
-    data3 = obs_M09_to_M36(data)
-    data_p3 = np.nanmean(np.dstack((data0,data1,data2,data3)),axis=2)
-    np.place(data_p3,(n_valid_innov<100) | (np.isnan(n_valid_innov)),np.nan)
-    cmin = ([0,0,None])
-    cmax = ([270,270,None])
-    fname='delta_innov_var_avg_triple'
-    #my_title='innov_var: m = %.2f, s = %.2f [mm]' % (np.nanmean(data0),np.nanstd(data0))
-    data_all = list([data_p1,data_p2,data_p3])
-    mstats = list(['m = %.3f, s = %.3f' % (np.nanmean(data_p1),np.nanstd(data_p1)),
-                   'm = %.3f, s = %.3f' % (np.nanmean(data_p2),np.nanstd(data_p2)),
-                   'm = %.3f, s = %.3f' % (np.nanmean(data_p3),np.nanstd(data_p3))])
-    figure_triple_default(data=data_all,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
-                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp1,fname=fname,
-                          plot_title=([r'$var(O-F)\/(CLSM)\/[K^2]$', r'$var(O-F)\/(PEATCLSM)\/[K^2]$', r'$var(O-F)\/(PEATCLSM) - var(O-F)\/(CLSM)\/[K^2]$']),mstats=mstats)
 
 
     ########## innov mean triple #############
@@ -1495,46 +1777,6 @@ def plot_filter_diagnostics_delta(exp1, exp2, domain, root, outpath):
                           llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp1,fname=fname,
                           plot_title=my_title)
 
-    ########## innov var #############
-    data = (ds2['innov_var'][0, :, :].values - ds1['innov_var'][0,:, :].values) \
-           / (ds1['innov_var'][0,:, :].values)
-    np.place(data,ds1['n_valid_innov'][0, :,:]<100,np.nan)
-    data0 = obs_M09_to_M36(data)
-
-    data = (ds2['innov_var'][1, :, :].values - ds1['innov_var'][1,:, :].values) \
-           / (ds1['innov_var'][1,:, :].values)
-    np.place(data,ds1['n_valid_innov'][1,:,:]<100,np.nan)
-    data1 = obs_M09_to_M36(data)
-
-    data = (ds2['innov_var'][2, :, :].values - ds1['innov_var'][2,:, :].values) \
-           / (ds1['innov_var'][2,:, :].values)
-    np.place(data,ds1['n_valid_innov'][2,:,:]<100,np.nan)
-    data2 = obs_M09_to_M36(data)
-
-    data = (ds2['innov_var'][3, :, :].values - ds1['innov_var'][3,:, :].values) \
-           / (ds1['innov_var'][3,:, :].values)
-    np.place(data,ds1['n_valid_innov'][3,:,:]<100,np.nan)
-    data3 = obs_M09_to_M36(data)
-
-    data = np.nanmean(np.dstack((data0,data1,data2,data3)),axis=2)
-    # mean over peatlands
-    catparam = io.read_params('catparam')
-    poros = np.full(lons.shape, np.nan)
-    poros[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['poros'].values
-    mean_peat = np.nanmean(data[poros>0.7])
-    mean_peat_SI = np.nanmedian(data[(poros>0.7)&(lons>63)&(lons<87)&(lats>56)&(lats<67)])
-    mean_peat_HU = np.nanmedian(data[(poros>0.7)&(lons>-95)&(lons<-80)&(lats>50)&(lats<60)])
-    worse = np.where(data[poros>0.7] > 0.0)[0]
-    better = np.where(data[poros>0.7] < 0.0)[0]
-    np.size(better)/(np.size(better)+np.size(worse))
-    cmin = -50
-    cmax = 50
-    fname='delta_innov_var_pct'
-    data = data*100.
-    my_title='delta var(O-F): m (peat) = %.1f, s (peat) = %.1f (pct)' % (np.nanmean(data[poros>0.7]),np.nanstd(data[poros>0.7]))
-    figure_single_default(data=100*data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
-                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp1,fname=fname,
-                          plot_title=my_title)
 
 
 
@@ -2117,7 +2359,7 @@ def figure_quatro_default(data,lons,lats,cmin,cmax,llcrnrlat, urcrnrlat,
 def figure_triple_default(data,lons,lats,cmin,cmax,llcrnrlat, urcrnrlat,
                           llcrnrlon,urcrnrlon,outpath,exp,fname,plot_title,mstats):
     # open figure
-    figsize = (13, 10)
+    figsize = (0.85*13, 0.85*10)
     fontsize = 13
     f = plt.figure(num=None, figsize=figsize, dpi=300, facecolor='w', edgecolor='k')
     for i in np.arange(0,3):
@@ -2141,7 +2383,7 @@ def figure_triple_default(data,lons,lats,cmin,cmax,llcrnrlat, urcrnrlat,
         cbrange = (cmin_, cmax_)
         ax = plt.subplot(3,1,i+1)
         plt_img = np.ma.masked_invalid(data[i])
-        m=Basemap(projection='mill',llcrnrlat=llcrnrlat,urcrnrlat=urcrnrlat,llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,resolution='l')
+        m=Basemap(projection='merc',llcrnrlat=llcrnrlat,urcrnrlat=urcrnrlat,llcrnrlon=-170.,urcrnrlon=urcrnrlon,resolution='l')
         m.drawcoastlines(linewidth=0.5)
         m.drawcountries(linewidth=0.5)
         parallels=np.arange(-80.0,81,5.)
@@ -2165,7 +2407,7 @@ def figure_triple_default(data,lons,lats,cmin,cmax,llcrnrlat, urcrnrlat,
             #cb = m.colorbar(im, "bottom", size="7%", pad="22%", shrink=0.5)
             #cb = matplotlib.pyplot.colorbar(im)
             im_ratio = np.shape(data)[1]/np.shape(data)[2]
-            cb = matplotlib.pyplot.colorbar(im,fraction=0.095*im_ratio, pad=0.02)
+            cb = matplotlib.pyplot.colorbar(im,fraction=0.13*im_ratio, pad=0.02)
             #ticklabs = cb.ax.get_yticklabels()
             #cb.ax.set_yticklabels(ticklabs,ha='right')
             #cb.ax.yaxis.set_tick_params(pad=45)  # your number may vary
