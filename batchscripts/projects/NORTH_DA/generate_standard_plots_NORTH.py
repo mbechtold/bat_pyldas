@@ -6,6 +6,7 @@ if platform.system() == 'Linux':
     import matplotlib
     matplotlib.use('TkAgg')
 from bat_pyldas.plotting import *
+from bat_pyldas.functions import *
 import getpass
 
 root='/staging/leuven/stg_00024/OUTPUT/michelb'
@@ -34,9 +35,12 @@ os.makedirs(outpath,exist_ok=True)
 #plot_innov_norm_std_quatro(exp, domain, root, outpath)
 #plot_innov_delta_std_quatro(exp1, exp2, domain, root, outpath)
 #plot_innov_delta_std_single(exp1, exp2, domain, root, outpath)
-#plot_peat_and_sites(exp, domain, root, outpath)
-plot_filter_diagnostics_delta(exp1, exp2, domain, root, outpath)
-plot_filter_diagnostics(exp, domain, root, outpath)
+#anomaly_JulyAugust_zbar(exp, domain, root, outputpath)
+#anomaly_JulyAugust_zbar(exp, domain, root, outpath)
+#plot_anomaly_JulyAugust_zbar(exp, domain, root, outpath)
+plot_peat_and_sites(exp, domain, root, outpath)
+#plot_filter_diagnostics(exp, domain, root, outpath)
+#plot_filter_diagnostics_delta(exp1, exp2, domain, root, outpath)
 #plot_filter_diagnostics_gs(exp, domain, root, outpath)
 #plot_filter_diagnostics_short(exp, domain, root, outpath)
 #plot_timeseries(exp, domain, root, outpath, lat=48.0, lon=51.0)
