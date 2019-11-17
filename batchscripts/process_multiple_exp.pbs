@@ -14,10 +14,10 @@
 source /data/leuven/317/vsc31786/miniconda/bin/activate py3
 
 cd /data/leuven/317/vsc31786/python/bat_pyldas/batchscripts
-#nohup process_ldas_output_default.py -r /scratch/leuven/317/vsc31786/output/TROPICS/ -e CONGO_M09_CLSM_v01 -d SMAP_EASEv2_M09 -v vsc31786 &> nohup_exp01.out &
-#nohup process_ldas_output_default.py -r /scratch/leuven/317/vsc31786/output/TROPICS/ -e CONGO_M09_PEATCLSM_v01 -d SMAP_EASEv2_M09 -v vsc31786 &> nohup_exp02.out &
-#nohup process_ldas_output_default.py -r /scratch/leuven/317/vsc31786/output/TROPICS/ -e CONGO_M09_PEATCLSMTN_v01 -d SMAP_EASEv2_M09 -v vsc31786 &> nohup_exp03a.out &
-#nohup process_ldas_output_default.py -r /scratch/leuven/317/vsc31786/output/TROPICS/ -e CONGO_M09_PEATCLSMTD_v01 -d SMAP_EASEv2_M09 -v vsc31786 &> nohup_exp03b.out &
+#nohup process_ldas_output_default.py -r /scratch/leuven/317/vsc31786/output/TROPICS/ -e CONGO_M09_CLSM_v01 -d SMAP_EASEv2_M09 &> nohup_exp01.out &
+#nohup process_ldas_output_default.py -r /scratch/leuven/317/vsc31786/output/TROPICS/ -e CONGO_M09_PEATCLSM_v01 -d SMAP_EASEv2_M09 &> nohup_exp02.out &
+#nohup process_ldas_output_default.py -r /scratch/leuven/317/vsc31786/output/TROPICS/ -e CONGO_M09_PEATCLSMTN_v01 -d SMAP_EASEv2_M09 &> nohup_exp03a.out &
+#nohup process_ldas_output_default.py -r /scratch/leuven/317/vsc31786/output/TROPICS/ -e CONGO_M09_PEATCLSMTD_v01 -d SMAP_EASEv2_M09 &> nohup_exp03b.out &
 nohup projects/TROPICS_DA/process_ldas_output_default_TROPICS_DA.py -r /scratch/leuven/317/vsc31786/output/TROPICS/ -e CONGO_M09_CLSM_v01_SMOSfw_OL -d SMAP_EASEv2_M09 &> nohup_exp01.out &
 nohup projects/TROPICS_DA/process_ldas_output_default_TROPICS_DA.py -r /scratch/leuven/317/vsc31786/output/TROPICS/ -e CONGO_M09_CLSM_v01_SMOSfw_DA -d SMAP_EASEv2_M09 &> nohup_exp02.out &
 nohup projects/TROPICS_DA/process_ldas_output_default_TROPICS_DA.py -r /scratch/leuven/317/vsc31786/output/TROPICS/ -e CONGO_M09_PEATCLSMTN_v01_SMOSfw_OL -d SMAP_EASEv2_M09 &> nohup_exp03a.out &
