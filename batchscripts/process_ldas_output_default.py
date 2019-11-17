@@ -35,12 +35,12 @@ from shutil import move
 
 def main(argv):
     root='/scratch/leuven/317/vsc31786/output/00TEST/'
-    exp='CONGO_M09_PEATCLSMTN_v01'
+    exp='CONGO_M09_PEATCLSMTN_v01_ERROR'
     domain='SMAP_EASEv2_M09'
     #vscgroup = os.getenv("HOME").split("/")[3]
     #vscname = os.getenv("HOME").split("/")[4]
     try:
-        opts, args = getopt.getopt(argv,"hr:e:d:v:",["root=","experiment=","domain="])
+        opts, args = getopt.getopt(argv,"hr:e:d:",["root=","experiment=","domain="])
     except getopt.GetoptError:
         print('process_ldas_output_default.py -r <root> -e <outputfile> -d <domain>')
         sys.exit(2)
@@ -51,7 +51,7 @@ def main(argv):
         elif opt in ("-r", "--root"):
             root = arg
         elif opt in ("-e", "--experiment"):
-            experiment = arg
+            exp = arg
         elif opt in ("-d", "--domain"):
             domain = arg
 
