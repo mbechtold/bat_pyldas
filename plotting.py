@@ -68,7 +68,7 @@ def plot_all_variables_temporal_moments(exp, domain, root, outpath):
         if varname=='evap':
             cmin=0
             cmax=5
-        plot_title=varname+" "+assign_units(var)
+        plot_title=varname+" "+assign_units(varname)
         fname=varname+'_mean'
         #plot_title='zbar [m]'
         figure_single_default(data=tmp_data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,

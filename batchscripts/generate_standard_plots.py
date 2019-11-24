@@ -17,8 +17,8 @@ from bat_pyldas.plotting import *
 from bat_pyldas.functions import read_wtd_data
 from validation_good_practice.ancillary import metrics
 
-plot_maps = 0
-plot_insitu = 1
+plot_maps = 1
+plot_insitu = 0
 plot_insitu_multiple_exp = 0
 
 # maps
