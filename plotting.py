@@ -23,7 +23,6 @@ import seaborn
 def assign_units(var):
 
     # Function to assign units to the variable 'var'.
-
     if var == 'srfexc' or var == 'rzexc' or var == 'catdef':
         unit = '[mm]'
     elif var == 'ar1' or var == 'ar2':
@@ -35,13 +34,204 @@ def assign_units(var):
     elif var == 'shflux' or var == 'lhflux':
         unit = '[W/m^2]'
     elif var == 'evap' or var == 'runoff':
-        unit = '[mm/d]'
+        unit = '[mm/day]'
     elif var == 'zbar':
         unit = '[m]'
     return(unit)
 
+def plot_all_variables_temporal_moments(exp, domain, root, outpath):
+
+    # plot temporal mean and standard deviation of variables
+    outpath = os.path.join(outpath, exp, 'maps', 'stats')
+    if not os.path.exists(outpath):
+        os.makedirs(outpath,exist_ok=True)
+
+    io = LDAS_io('daily', exp=exp, domain=domain, root=root)
+    [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
+
+
+    # mean
+    m1 = io.timeseries.mean(axis=0)
+    for varname, da in m1.data_vars.items():
+        tmp_data = da
+        #cmin = 0
+        #cmax = 0.7
+        cmin = None
+        cmax = None
+        plot_title=varname
+        if varname=='zbar':
+            cmin=-0.6
+            cmax=-0.1
+        if varname=='runoff':
+            cmin=0
+            cmax=5
+        if varname=='evap':
+            cmin=0
+            cmax=5
+        plot_title=varname+" "+assign_units(var)
+        fname=varname+'_mean'
+        #plot_title='zbar [m]'
+        figure_single_default(data=tmp_data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                              llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title=plot_title)
+    m2 = io.timeseries.std(axis=0)
+    for varname, da in m2.data_vars.items():
+        tmp_data = da
+        #cmin = 0
+        #cmax = 0.7
+        cmin = None
+        cmax = None
+        fname=varname+'_std'
+        #plot_title='zbar [m]'
+        plot_title=varname
+        figure_single_default(data=tmp_data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                              llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title=plot_title)
+
+def plot_catparams(exp, domain, root, outpath):
+
+    outpath = os.path.join(outpath, exp, 'maps','catparam')
+    if not os.path.exists(outpath):
+        os.makedirs(outpath,exist_ok=True)
+    io = LDAS_io('catparam', exp=exp, domain=domain, root=root)
+    [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
+    tc = io.grid.tilecoord
+    tg = io.grid.tilegrids
+
+
+    params = LDAS_io(exp=exp, domain=domain, root=root).read_params('catparam')
+
+    for param in params:
+
+        img = np.full(lons.shape, np.nan)
+        img[tc.j_indg.values, tc.i_indg.values] = params[param].values
+        data = np.ma.masked_invalid(img)
+        fname=param
+        # cmin cmax, if not defined determined based on data
+        if ((param=="poros") | (param=="poros30")):
+            cmin = 0
+            cmax = 0.92
+        else:
+            cmin = None
+            cmax = None
+        figure_single_default(data=data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                              llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title=param)
+
+def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, exp, outpath):
+
+    # Initiate dataframe to store metrics in.
+    INDEX = wtd_obs.columns
+    COL = ['bias', 'ubRMSD', 'Pearson_R', 'RMSD']
+    df_metrics = pd.DataFrame(index=INDEX, columns=COL,dtype=float)
+
+    for c,site in enumerate(wtd_obs.columns):
+
+        df_tmp = pd.concat((wtd_obs[site],wtd_mod[site]),axis=1)
+        df_tmp.columns = ['data_obs','data_mod']
+
+        bias_site = metrics.bias(df_tmp) # Bias = bias_site[0]
+        ubRMSD_site = metrics.ubRMSD(df_tmp) # ubRMSD = ubRMSD_site[0]
+        pearson_R_site = metrics.Pearson_R(df_tmp) # Pearson_R = pearson_R_site[0]
+        RMSD_site = (ubRMSD_site[0]**2 + bias_site[0]**2)**0.5
+
+        # Save metrics in df_metrics.
+        df_metrics.loc[site]['bias'] = bias_site[0]
+        df_metrics.loc[site]['ubRMSD'] =  ubRMSD_site[0]
+        df_metrics.loc[site]['Pearson_R'] = pearson_R_site[0]
+        df_metrics.loc[site]['RMSD'] = RMSD_site
+
+        # Create x-axis matching in situ data.
+        x_start = df_tmp.index[0]  # Start a-axis with the first day with an observed wtd value.
+        x_end = df_tmp.index[-1]   # End a-axis with the last day with an observed wtd value.
+        Xlim = [x_start, x_end]
+
+        # Calculate z-score for the time series.
+        df_zscore = df_tmp.apply(zscore)
+
+        plt.figure(figsize=(16, 6.5))
+        fontsize = 12
+
+        ax1 = plt.subplot(311)
+        df_tmp.plot(ax=ax1, fontsize=fontsize, style=['.','-'], linewidth=2, xlim=Xlim)
+        plt.ylabel('zbar [m]')
+
+        Title = site + '\n' + ' bias = ' + str(bias_site[0]) + ', ubRMSD = ' + str(ubRMSD_site[0]) + ', Pearson_R = ' + str(pearson_R_site[0]) + ', RMSD = ' + str(RMSD_site)
+        plt.title(Title)
+
+        ax2 = plt.subplot(312)
+        df_zscore.plot(ax=ax2, fontsize=fontsize, style=['.','-'], linewidth=2, xlim=Xlim)
+        plt.ylabel('z-score')
+
+        ax3 = plt.subplot(313)
+        precip_obs[site].plot(ax=ax3, fontsize=fontsize, style=['.'], linewidth=2, xlim=Xlim)
+        plt.ylabel('precipitation [mm/d]')
+
+        plt.tight_layout()
+        fname = site
+        fname_long = os.path.join(outpath + '/comparison_insitu_data/' + fname + '.png')
+        plt.savefig(fname_long, dpi=150)
+        plt.close()
+
+    # Plot boxplot for metrics
+    plt.figure()
+    df_metrics.boxplot()
+    fname = 'metrics'
+    fname_long = os.path.join(outpath + '/comparison_insitu_data/' + fname + '.png')
+    plt.savefig(fname_long, dpi=150)
+    plt.close()
+
+def plot_skillmetrics_comparison_wtd_multimodel(wtd_obs, wtd_mod, precip_obs, exp, outpath):
+
+    # Initiate dataframe to store metrics in.
+    INDEX = wtd_obs.columns
+
+    for c,site in enumerate(wtd_obs.columns):
+
+        df_tmp = pd.concat((wtd_obs[site], wtd_mod[0][site],wtd_mod[1][site],wtd_mod[2][site]),axis=1)
+        df_tmp.columns = ['In-situ','North','Tropics-N','Tropics-D']
+
+        # Create x-axis matching in situ data.
+        x_start = df_tmp.index[0]  # Start a-axis with the first day with an observed wtd value.
+        x_end = df_tmp.index[-1]   # End a-axis with the last day with an observed wtd value.
+        Xlim = [x_start, x_end]
+
+        # Calculate z-score for the time series.
+        df_zscore = df_tmp.dropna(axis=0).apply(zscore)
+
+        plt.figure(figsize=(16, 6.5))
+        fontsize = 12
+
+        ax1 = plt.subplot(311)
+        df_tmp.plot(ax=ax1, fontsize=fontsize, style=['.','-','-','-'], linewidth=2, xlim=Xlim)
+        plt.ylabel('zbar [m]')
+
+        plt.title(site)
+
+        ax1 = plt.subplot(312)
+        df_tmp.plot(ax=ax1, fontsize=fontsize, style=['.','-','-','-'], linewidth=2, xlim=[df_zscore.index[0],df_zscore.index[-1]])
+        plt.ylabel('zbar [m]')
+
+        ax2 = plt.subplot(313)
+        df_zscore.plot(ax=ax2, fontsize=fontsize, style=['.','-','-','-'], linewidth=2, xlim=[df_zscore.index[0],df_zscore.index[-1]])
+        plt.ylabel('z-score')
+
+        plt.legend()
+
+        plt.tight_layout()
+        fname = site
+        fname_long = os.path.join(outpath + '/comparison_insitu_data/' + fname + '_multimodel.png')
+        plt.savefig(fname_long, dpi=150)
+        plt.close()
+
+    # Plot boxplot for metrics
+    plt.figure()
+    df_metrics.boxplot()
+    fname = 'metrics'
+    fname_long = os.path.join(outpath + '/comparison_insitu_data/' + fname + '.png')
+    plt.savefig(fname_long, dpi=150)
+    plt.close()
+
 def plot_delta_spinup(exp1, exp2, domain, root, outpath):
 
+    # Hugo Rudebeck:
     # Funtion to plot the difference between two runs. Takes the difference between the all the sites for the two runs and
     # saves the maximum difference for every time step. Does this for all variables.
 
@@ -91,69 +281,6 @@ def plot_delta_spinup(exp1, exp2, domain, root, outpath):
         plt.savefig(fname_long, dpi=150)
         plt.close()
 
-def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, exp, outpath):
-
-    # Initiate dataframe to store metrics in.
-    INDEX = wtd_obs.columns
-    COL = ['bias', 'ubRMSD', 'Pearson_R', 'RMSD']
-    df_metrics = pd.DataFrame(index=INDEX, columns=COL,dtype=float)
-
-    for c,site in enumerate(wtd_obs.columns):
-
-        df_tmp = pd.concat((wtd_mod[site],wtd_obs[site]),axis=1)
-        df_tmp.columns = ['data_mod','data_obs']
-
-        bias_site = metrics.bias(df_tmp) # Bias = bias_site[0]
-        ubRMSD_site = metrics.ubRMSD(df_tmp) # ubRMSD = ubRMSD_site[0]
-        pearson_R_site = metrics.Pearson_R(df_tmp) # Pearson_R = pearson_R_site[0]
-        RMSD_site = (ubRMSD_site[0]**2 + bias_site[0]**2)**0.5
-
-        # Save metrics in df_metrics.
-        df_metrics.loc[site]['bias'] = bias_site[0]
-        df_metrics.loc[site]['ubRMSD'] =  ubRMSD_site[0]
-        df_metrics.loc[site]['Pearson_R'] = pearson_R_site[0]
-        df_metrics.loc[site]['RMSD'] = RMSD_site
-
-        # Create x-axis matching in situ data.
-        x_start = df_tmp.index[0]  # Start a-axis with the first day with an observed wtd value.
-        x_end = df_tmp.index[-1]   # End a-axis with the last day with an observed wtd value.
-        Xlim = [x_start, x_end]
-
-        # Calculate z-score for the time series.
-        df_zscore = df_tmp.apply(zscore)
-
-        plt.figure(figsize=(19, 8))
-        fontsize = 12
-
-        ax1 = plt.subplot(311)
-        df_tmp.plot(ax=ax1, fontsize=fontsize, style=['-','.'], linewidth=2, xlim=Xlim)
-        plt.ylabel('zbar [m]')
-
-        Title = site + '\n' + ' bias = ' + str(bias_site[0]) + ', ubRMSD = ' + str(ubRMSD_site[0]) + ', Pearson_R = ' + str(pearson_R_site[0]) + ', RMSD = ' + str(RMSD_site)
-        plt.title(Title)
-
-        ax2 = plt.subplot(312)
-        df_zscore.plot(ax=ax2, fontsize=fontsize, style=['-','.'], linewidth=2, xlim=Xlim)
-        plt.ylabel('z-score')
-
-        ax3 = plt.subplot(313)
-        precip_obs[site].plot(ax=ax3, fontsize=fontsize, style=['.'], linewidth=2, xlim=Xlim)
-        plt.ylabel('precipitation [mm/d]')
-
-        plt.tight_layout()
-        fname = site
-        fname_long = os.path.join(outpath + '/' + exp + '/comparison_insitu_data/timeseries/' + fname + '.png')
-        plt.savefig(fname_long, dpi=150)
-        plt.close()
-
-    # Plot boxplot for metrics
-    plt.figure()
-    df_metrics.boxplot()
-    fname = 'metrics'
-    fname_long = os.path.join(outpath + '/' + exp + '/comparison_insitu_data/' + fname + '.png')
-    plt.savefig(fname_long, dpi=150)
-    plt.close()
-
 def plot_timeseries_wtd_sfmc(exp, domain, root, outpath, lat=53, lon=25):
 
     outpath = os.path.join(outpath, exp, 'timeseries')
@@ -197,6 +324,94 @@ def plot_timeseries_wtd_sfmc(exp, domain, root, outpath, lat=53, lon=25):
     fname_long = os.path.join(outpath, fname+'.png')
     plt.savefig(fname_long, dpi=150)
     plt.close()
+
+
+def plot_peat_and_sites(exp, domain, root, outpath):
+
+    outpath = os.path.join(outpath, exp, 'maps','catparam')
+    if not os.path.exists(outpath):
+        os.makedirs(outpath,exist_ok=True)
+    io = LDAS_io('catparam', exp=exp, domain=domain, root=root)
+    [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
+    tc = io.grid.tilecoord
+    tg = io.grid.tilegrids
+
+    params = LDAS_io(exp=exp, domain=domain, root=root).read_params('catparam')
+    #RTMparams = LDAS_io(exp=exp, domain=domain, root=root).read_params('RTMparam')
+    # land fraction
+    frac_cell = io.grid.tilecoord.frac_cell.values
+    param='poros'
+    # fraction of peatlands with less than 5 % open water
+    frac_peatland = np.nansum(np.all(np.vstack((frac_cell>0.5,params['poros'].values>0.8)),axis=0))/np.nansum(params['poros'].values>0.01)
+    frac_peatland_less5 = np.nansum(np.all(np.vstack((frac_cell>0.95,params['poros'].values>0.8)),axis=0))/np.nansum(params['poros'].values>0.8)
+    # set more than 5% open water grid cells to 1.
+    params[param].values[np.all(np.vstack((frac_cell<0.95,params['poros'].values>0.8)),axis=0)] = 1.
+    params[param].values[params['poros'].values<0.8] = np.nan
+    params[param].values[np.all(np.vstack((params['poros'].values<0.95,params['poros'].values>0.8)),axis=0)] = 0.0
+    img = np.full(lons.shape, np.nan)
+    img[tc.j_indg.values, tc.i_indg.values] = params[param].values
+    data = np.ma.masked_invalid(img)
+    fname='01b_'+param
+    cmin = 0
+    cmax = 1
+    title='Peatland distribution'
+    # open figure
+    figsize = (0.85*13, 0.85*10)
+    fontsize = 13
+    f = plt.figure(num=None, figsize=figsize, dpi=300, facecolor='w', edgecolor='k')
+    cmap = matplotlib.colors.ListedColormap([[255./255,193./255,7./255],[30./255,136./255,229./255]])
+    #cmap = 'jet'
+    cbrange = (cmin, cmax)
+    ax=plt.subplot(3,1,3)
+    plt_img=np.ma.masked_invalid(data)
+    m=Basemap(projection='merc',llcrnrlat=llcrnrlat,urcrnrlat=urcrnrlat,llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,resolution='l')
+    #m=Basemap(projection='merc',llcrnrlat=llcrnrlat,urcrnrlat=urcrnrlat,llcrnrlon=-170.,urcrnrlon=urcrnrlon,resolution='l')
+    m.drawcoastlines(linewidth=0.5)
+    m.drawcountries(linewidth=0.5)
+    parallels=np.arange(-80.0,81,5.)
+    m.drawparallels(parallels,linewidth=0.5,labels=[True,False,False,False])
+    meridians=np.arange(0.,351.,20.)
+    m.drawmeridians(meridians,linewidth=0.5,labels=[False,False,False,True])
+    m.readshapefile('/data/leuven/317/vsc31786/gis/permafrost/permafrost_boundary', 'permafrost_boundary',linewidth=1.3,color=(0./255,0./255,0./255))
+    # load peatland sites
+    sites = pd.read_csv('/data/leuven/317/vsc31786/FIG_tmp/00DA/20190228_M09/cluster_radius_2_bog.txt',sep=',')
+    #http://lagrange.univ-lyon1.fr/docs/matplotlib/users/colormapnorms.html
+    #lat=48.
+    #lon=51.0
+    x,y=m(sites['Lon'].values,sites['Lat'].values)
+    m.plot(x,y,'.',color=(0./255,0./255,0./255),markersize=12,markeredgewidth=1.5,mfc='none')
+
+    im=m.pcolormesh(lons,lats,plt_img,cmap=cmap,latlon=True)
+    im.set_clim(vmin=cbrange[0],vmax=cbrange[1])
+    #cb=m.colorbar(im,"bottom",size="7%",pad="22%",shrink=0.5)
+    #cb=matplotlib.pyplot.colorbar(im)
+    im_ratio=np.shape(data)[0]/np.shape(data)[1]
+    cb=matplotlib.pyplot.colorbar(im,fraction=0.13*im_ratio,pad=0.02)
+    #ticklabs=cb.ax.get_yticklabels()
+    #cb.ax.set_yticklabels(ticklabs,ha='right')
+    #cb.ax.yaxis.set_tick_params(pad=45)#yournumbermayvary
+    #labelsize
+    for t in cb.ax.get_xticklabels():
+        t.set_fontsize(fontsize)
+    for t in cb.ax.get_yticklabels():
+        t.set_fontsize(fontsize)
+        t.set_horizontalalignment('right')
+        t.set_x(9.0)
+    tit=plt.title(title,fontsize=fontsize)
+    #matplotlib.pyplot.text(1.0,1.0,mstats[i],horizontalalignment='right',verticalalignment='bottom',transform=ax.transAxes,fontsize=fontsize)
+    fname_long = os.path.join(outpath, fname+'.png')
+    plt.tight_layout()
+    plt.savefig(fname_long, dpi=f.dpi)
+    plt.close()
+
+
+##########################################################################################################################################################
+##########################################################################################################################################################
+##########################################################################################################################################################
+##########################################################################################################################################################
+##########################################################################################################################################################
+##########################################################################################################################################################
+# DA stuff, to be cleaned up after Remote Sensing of Environment paper acceptance
 
 def plot_anomaly_JulyAugust_zbar(exp, domain, root, outpath):
 
@@ -266,242 +481,6 @@ def plot_anomaly_JulyAugust_zbar(exp, domain, root, outpath):
     fname_long = os.path.join(outpath, fname+'.png')
     plt.savefig(fname_long, dpi=f.dpi)
     plt.close()
-
-
-
-def plot_peat_and_sites(exp, domain, root, outpath):
-
-    outpath = os.path.join(outpath, exp, 'maps','catparam')
-    if not os.path.exists(outpath):
-        os.makedirs(outpath,exist_ok=True)
-    io = LDAS_io('catparam', exp=exp, domain=domain, root=root)
-    [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
-    tc = io.grid.tilecoord
-    tg = io.grid.tilegrids
-
-    params = LDAS_io(exp=exp, domain=domain, root=root).read_params('catparam')
-    #RTMparams = LDAS_io(exp=exp, domain=domain, root=root).read_params('RTMparam')
-    # land fraction
-    frac_cell = io.grid.tilecoord.frac_cell.values
-    param='poros'
-    # fraction of peatlands with less than 5 % open water
-    frac_peatland = np.nansum(np.all(np.vstack((frac_cell>0.5,params['poros'].values>0.8)),axis=0))/np.nansum(params['poros'].values>0.01)
-    frac_peatland_less5 = np.nansum(np.all(np.vstack((frac_cell>0.95,params['poros'].values>0.8)),axis=0))/np.nansum(params['poros'].values>0.8)
-    # set more than 5% open water grid cells to 1.
-    params[param].values[np.all(np.vstack((frac_cell<0.95,params['poros'].values>0.8)),axis=0)] = 1.
-    params[param].values[params['poros'].values<0.8] = np.nan
-    params[param].values[np.all(np.vstack((params['poros'].values<0.95,params['poros'].values>0.8)),axis=0)] = 0.0
-    img = np.full(lons.shape, np.nan)
-    img[tc.j_indg.values, tc.i_indg.values] = params[param].values
-    data = np.ma.masked_invalid(img)
-    fname='01b_'+param
-    cmin = 0
-    cmax = 1
-    title='Peatland distribution'
-    # open figure
-    figsize = (0.85*13, 0.85*10)
-    fontsize = 13
-    f = plt.figure(num=None, figsize=figsize, dpi=300, facecolor='w', edgecolor='k')
-    cmap = matplotlib.colors.ListedColormap([[255./255,193./255,7./255],[30./255,136./255,229./255]])
-    #cmap = 'jet'
-    cbrange = (cmin, cmax)
-    ax=plt.subplot(3,1,3)
-    plt_img=np.ma.masked_invalid(data)
-    #m=Basemap(projection='merc',llcrnrlat=llcrnrlat,urcrnrlat=urcrnrlat,llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,resolution='l')
-    m=Basemap(projection='merc',llcrnrlat=llcrnrlat,urcrnrlat=urcrnrlat,llcrnrlon=-170.,urcrnrlon=urcrnrlon,resolution='l')
-    m.drawcoastlines(linewidth=0.5)
-    m.drawcountries(linewidth=0.5)
-    parallels=np.arange(-80.0,81,5.)
-    m.drawparallels(parallels,linewidth=0.5,labels=[True,False,False,False])
-    meridians=np.arange(0.,351.,20.)
-    m.drawmeridians(meridians,linewidth=0.5,labels=[False,False,False,True])
-    m.readshapefile('/data/leuven/317/vsc31786/gis/permafrost/permafrost_boundary', 'permafrost_boundary',linewidth=1.3,color=(0./255,0./255,0./255))
-    # load peatland sites
-    sites = pd.read_csv('/data/leuven/317/vsc31786/FIG_tmp/00DA/20190228_M09/cluster_radius_2_bog.txt',sep=',')
-    #http://lagrange.univ-lyon1.fr/docs/matplotlib/users/colormapnorms.html
-    #lat=48.
-    #lon=51.0
-    x,y=m(sites['Lon'].values,sites['Lat'].values)
-    m.plot(x,y,'.',color=(0./255,0./255,0./255),markersize=12,markeredgewidth=1.5,mfc='none')
-
-    im=m.pcolormesh(lons,lats,plt_img,cmap=cmap,latlon=True)
-    im.set_clim(vmin=cbrange[0],vmax=cbrange[1])
-    #cb=m.colorbar(im,"bottom",size="7%",pad="22%",shrink=0.5)
-    #cb=matplotlib.pyplot.colorbar(im)
-    im_ratio=np.shape(data)[0]/np.shape(data)[1]
-    cb=matplotlib.pyplot.colorbar(im,fraction=0.13*im_ratio,pad=0.02)
-    #ticklabs=cb.ax.get_yticklabels()
-    #cb.ax.set_yticklabels(ticklabs,ha='right')
-    #cb.ax.yaxis.set_tick_params(pad=45)#yournumbermayvary
-    #labelsize
-    for t in cb.ax.get_xticklabels():
-        t.set_fontsize(fontsize)
-    for t in cb.ax.get_yticklabels():
-        t.set_fontsize(fontsize)
-        t.set_horizontalalignment('right')
-        t.set_x(9.0)
-    tit=plt.title(title,fontsize=fontsize)
-    #matplotlib.pyplot.text(1.0,1.0,mstats[i],horizontalalignment='right',verticalalignment='bottom',transform=ax.transAxes,fontsize=fontsize)
-    fname_long = os.path.join(outpath, fname+'.png')
-    plt.tight_layout()
-    plt.savefig(fname_long, dpi=f.dpi)
-    plt.close()
-
-def plot_catparams(exp, domain, root, outpath):
-
-    outpath = os.path.join(outpath, exp, 'maps','catparam')
-    if not os.path.exists(outpath):
-        os.makedirs(outpath,exist_ok=True)
-    io = LDAS_io('catparam', exp=exp, domain=domain, root=root)
-    [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
-    tc = io.grid.tilecoord
-    tg = io.grid.tilegrids
-
-
-    params = LDAS_io(exp=exp, domain=domain, root=root).read_params('catparam')
-
-    for param in params:
-
-        img = np.full(lons.shape, np.nan)
-        img[tc.j_indg.values, tc.i_indg.values] = params[param].values
-        data = np.ma.masked_invalid(img)
-        fname=param
-        # cmin cmax definition, best defined for every variable
-        if ((param=="poros") | (param=="poros30")):
-            cmin = 0
-            cmax = 0.92
-        else:
-            cmin = None
-            cmax = None
-        figure_single_default(data=data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
-                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title=param)
-
-
-def plot_sfmc_std(exp, domain, root, outpath):
-
-    outpath = os.path.join(outpath, exp, 'maps', 'stats')
-    if not os.path.exists(outpath):
-        os.makedirs(outpath,exist_ok=True)
-
-    io = LDAS_io('daily', exp=exp, domain=domain, root=root)
-    [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
-
-    # calculate variable to plot
-    tmp_data = io.timeseries['sfmc']
-    tmp_data = tmp_data.where(tmp_data != 0)
-    tmp_data = tmp_data.std(dim='time',skipna=True).values
-
-    # other parameter definitions
-    cmin = 0
-    cmax = 0.12
-
-    fname='sfmc_std'
-    plot_title='sfmc_std [m3/m3]'
-    figure_single_default(data=tmp_data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
-                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title=plot_title)
-
-def plot_zbar_std(exp, domain, root, outpath):
-
-    outpath = os.path.join(outpath, exp, 'maps', 'stats')
-    if not os.path.exists(outpath):
-        os.makedirs(outpath,exist_ok=True)
-
-    io = LDAS_io('daily', exp=exp, domain=domain, root=root)
-    [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
-
-
-    # calculate variable to plot
-    tmp_data = io.timeseries['zbar']
-    tmp_data = tmp_data.where(tmp_data != 0)
-    tmp_data = tmp_data.std(dim='time',skipna=True).values
-
-    # other parameter definitions
-    cmin = 0
-    cmax = 0.7
-
-    fname='zbar_std'
-    plot_title='zbar_std [m]'
-    figure_single_default(data=tmp_data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
-                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title=plot_title)
-
-def plot_waterstorage_std(exp, domain, root, outpath):
-
-    outpath = os.path.join(outpath, exp, 'maps', 'stats')
-    if not os.path.exists(outpath):
-        os.makedirs(outpath,exist_ok=True)
-
-    io = LDAS_io('daily', exp=exp, domain=domain, root=root)
-    [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
-
-    # calculate variable to plot
-    tmp_data = io.timeseries['catdef'] + io.timeseries['srfexc'] + io.timeseries['rzexc']
-    tmp_data = tmp_data.where(tmp_data != 0)
-    tmp_data = tmp_data.std(dim='time',skipna=True).values
-
-    # other parameter definitions
-    cmin = 0
-    cmax = 100
-
-    fname='waterstorage_std'
-    plot_title='waterstorage_std [mm]'
-    figure_single_default(data=tmp_data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
-                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title=plot_title)
-
-def figure_single_default(data,lons,lats,cmin,cmax,llcrnrlat, urcrnrlat,
-                              llcrnrlon,urcrnrlon,outpath,exp,fname,plot_title):
-    cmap = 'jet'
-    if cmin == None:
-        cmin = np.nanmin(data)
-    if cmax == None:
-        cmax = np.nanmax(data)
-    if cmin < 0.0:
-        cmax = np.max([-cmin,cmax])
-        cmin = -cmax
-        cmap = 'seismic'
-    # open figure
-    fig_aspect_ratio = (0.1*(np.max(lons)-np.min(lons)))/(0.18*(np.max(lats)-np.min(lats)))
-    figsize = (fig_aspect_ratio+10,10)
-    fontsize = 14
-    cbrange = (cmin, cmax)
-
-    f = plt.figure(num=None, figsize=figsize, dpi=90, facecolor='w', edgecolor='k')
-    plt_img = np.ma.masked_invalid(data)
-    m = Basemap(projection='mill', llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat, llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon, resolution='l')
-    m.drawcoastlines()
-    m.drawcountries()
-    parallels = np.arange(-80.0,81,5.)
-    m.drawparallels(parallels,labels=[False,True,True,False])
-    meridians = np.arange(0.,351.,10.)
-    m.drawmeridians(meridians,labels=[True,False,False,True])
-    # color bar
-    im = m.pcolormesh(lons, lats, plt_img, cmap=cmap, latlon=True)
-    im.set_clim(vmin=cbrange[0], vmax=cbrange[1])
-    #lat=53.
-    #lon=38.5
-    #x,y = m(lon, lat)
-    #m.plot(x, y, 'ko', markersize=6,mfc='none')
-    #cmap = plt.get_cmap(cmap)
-    cb = m.colorbar(im, "bottom", size="6%", pad="15%",shrink=0.5)
-    # label size
-    for t in cb.ax.get_xticklabels():
-        t.set_fontsize(fontsize)
-    for t in cb.ax.get_yticklabels():
-        t.set_fontsize(fontsize)
-    plt.title(plot_title, fontsize=fontsize)
-    #plt.tight_layout()
-    fname_long = os.path.join(outpath, fname+'.png')
-    plt.savefig(fname_long, dpi=f.dpi)
-    plt.close()
-
-
-##########################################################################################################################################################
-##########################################################################################################################################################
-##########################################################################################################################################################
-##########################################################################################################################################################
-##########################################################################################################################################################
-##########################################################################################################################################################
-
-
 
 def plot_RTMparams(exp, domain, root, outpath):
 
@@ -2359,7 +2338,10 @@ def figure_quatro_default(data,lons,lats,cmin,cmax,llcrnrlat, urcrnrlat,
 def figure_triple_default(data,lons,lats,cmin,cmax,llcrnrlat, urcrnrlat,
                           llcrnrlon,urcrnrlon,outpath,exp,fname,plot_title,mstats):
     # open figure
-    figsize = (0.85*13, 0.85*10)
+    if np.mean(lats)>40:
+        figsize = (0.85*13, 0.85*10)
+    else:
+        figsize = (0.85*5, 0.85*10)
     fontsize = 13
     f = plt.figure(num=None, figsize=figsize, dpi=300, facecolor='w', edgecolor='k')
     for i in np.arange(0,3):
@@ -2383,7 +2365,8 @@ def figure_triple_default(data,lons,lats,cmin,cmax,llcrnrlat, urcrnrlat,
         cbrange = (cmin_, cmax_)
         ax = plt.subplot(3,1,i+1)
         plt_img = np.ma.masked_invalid(data[i])
-        m=Basemap(projection='merc',llcrnrlat=llcrnrlat,urcrnrlat=urcrnrlat,llcrnrlon=-170.,urcrnrlon=urcrnrlon,resolution='l')
+        #m=Basemap(projection='merc',llcrnrlat=llcrnrlat,urcrnrlat=urcrnrlat,llcrnrlon=-170.,urcrnrlon=urcrnrlon,resolution='l')
+        m=Basemap(projection='merc',llcrnrlat=llcrnrlat,urcrnrlat=urcrnrlat,llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,resolution='l')
         m.drawcoastlines(linewidth=0.5)
         m.drawcountries(linewidth=0.5)
         parallels=np.arange(-80.0,81,5.)
@@ -2419,7 +2402,10 @@ def figure_triple_default(data,lons,lats,cmin,cmax,llcrnrlat, urcrnrlat,
             t.set_horizontalalignment('right')
             t.set_x(9.0)
         tit = plt.title(plot_title[i], fontsize=fontsize)
-        matplotlib.pyplot.text(1.0, 1.0, mstats[i], horizontalalignment='right', verticalalignment='bottom', transform=ax.transAxes, fontsize=fontsize)
+        if np.mean(lats)>40:
+            matplotlib.pyplot.text(1.0, 1.0, mstats[i], horizontalalignment='right', verticalalignment='bottom', transform=ax.transAxes, fontsize=fontsize)
+        else:
+            matplotlib.pyplot.text(1.0, 0.0, mstats[i], bbox=dict(facecolor='white', alpha=1.0), horizontalalignment='right', verticalalignment='bottom', transform=ax.transAxes, fontsize=fontsize)
     fname_long = os.path.join(outpath, fname+'.png')
     plt.tight_layout()
     plt.savefig(fname_long, dpi=f.dpi)
@@ -2522,45 +2508,30 @@ def figure_double_scaling(data,lons,lats,cmin,cmax,llcrnrlat, urcrnrlat,
     plt.savefig(fname_long, dpi=f.dpi)
     plt.close()
 
-def figure_single_default_new(data,lons,lats,cmin,cmax,llcrnrlat, urcrnrlat,
-                              llcrnrlon,urcrnrlon,outpath,exp,fname,plot_title):
-    cmap = 'jet'
-    if cmin == None:
-        cmin = np.nanmin(data)
-    if cmax == None:
-        cmax = np.nanmax(data)
-    if cmin < 0.0:
-        cmax = np.max([-cmin,cmax])
-        cmin = -cmax
-        cmap = 'seismic'
-
-    cmap = plt.get_cmap(cmap)
-    # open figure
-    fig, ax = plt.subplots()
-    cs = ax.pcolormesh(lons, lats, data, cmap=cmap)
-    fig.colorbar(cs,shrink=0.6)
-    plt.title(plot_title)
-    if not os.path.exists(os.path.join(outpath, exp)):
-        os.mkdir(os.path.join(outpath, exp))
-    fname_long = os.path.join(outpath, exp, fname+'.png')
-    #plt.tight_layout()
-    plt.savefig(fname_long, dpi=f.dpi)
-    plt.close()
-
 def figure_single_default(data,lons,lats,cmin,cmax,llcrnrlat, urcrnrlat,
                               llcrnrlon,urcrnrlon,outpath,exp,fname,plot_title):
     cmap = 'jet'
+    if plot_title.startswith('zbar'):
+        cmap = 'jet_r'
     if cmin == None:
         cmin = np.nanmin(data)
     if cmax == None:
         cmax = np.nanmax(data)
-    if cmin < 0.0:
-        cmax = np.max([-cmin,cmax])
-        cmin = -cmax
-        cmap = 'seismic'
+    #if cmin < 0.0:
+    #    cmax = np.max([-cmin,cmax])
+    #    cmin = -cmax
+    #    cmap = 'seismic'
     # open figure
-    fig_aspect_ratio = (0.1*(np.max(lons)-np.min(lons)))/(0.18*(np.max(lats)-np.min(lats)))
-    figsize = (fig_aspect_ratio+10,10)
+    # Norther peatland:
+    if np.mean(lats)>30:
+        fig_aspect_ratio = (0.1*(np.max(lons)-np.min(lons)))/(0.18*(np.max(lats)-np.min(lats)))
+        figsize = (fig_aspect_ratio+10,10)
+        parallels = np.arange(-80.0,81,5.)
+        meridians = np.arange(0.,351.,20.)
+    else:
+        figsize = (10,10)
+        parallels = np.arange(-80.0,81,np.round((np.max(lats)-np.min(lats))/4))
+        meridians = np.arange(0.,351.,np.round((np.max(lons)-np.min(lons))/4))
     fontsize = 14
     cbrange = (cmin, cmax)
 
@@ -2569,9 +2540,7 @@ def figure_single_default(data,lons,lats,cmin,cmax,llcrnrlat, urcrnrlat,
     m = Basemap(projection='mill', llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat, llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon, resolution='l')
     m.drawcoastlines()
     m.drawcountries()
-    parallels = np.arange(-80.0,81,5.)
     m.drawparallels(parallels,labels=[False,True,True,False])
-    meridians = np.arange(0.,351.,20.)
     m.drawmeridians(meridians,labels=[True,False,False,True])
     # color bar
     im = m.pcolormesh(lons, lats, plt_img, cmap=cmap, latlon=True)

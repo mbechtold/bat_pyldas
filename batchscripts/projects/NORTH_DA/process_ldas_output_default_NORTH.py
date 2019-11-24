@@ -12,13 +12,12 @@ from shutil import move
 
 # set names
 if len(sys.argv)<=1:
-    root='/scratch/leuven/'+vscgroup+'/'+vscname+'/output/00TEST/'
     exp='CONGO_M09_PEATCLSMTN_v01'
     domain='SMAP_EASEv2_M09'
-    root='/staging/leuven/stg_00024/OUTPUT/michelb'                                                     |  if len(sys.argv)<=1:
-    exp='SMAP_EASEv2_M09_CLSM_SMOSfw_DA'                                                                |      root='/scratch/leuven/'+vscgroup+'/'+vscname+'/output/00TEST/'                                  
-    exp1='SMAP_EASEv2_M09_SI_CLSM_SMOSfw_DA'                                                            |      exp='CONGO_M09_PEATCLSMTN_v01'                                                                  
-    exp2='SMAP_EASEv2_M09_SI_SMOSfw_DA'                                                                 |      domain='SMAP_EASEv2_M09'                                                                        
+    root='/staging/leuven/stg_00024/OUTPUT/michelb'
+    exp='SMAP_EASEv2_M09_CLSM_SMOSfw_DA'
+    exp1='SMAP_EASEv2_M09_CLSM_SMOSfw_DA'
+    exp2='SMAP_EASEv2_M09_SMOSfw_DA'
     domain='SMAP_EASEv2_M09'  
 else:
     root=sys.argv[1]
@@ -37,10 +36,10 @@ lonmax=180.
 # processing
 proc_ObsFcstAna = 0
 proc_incr = 0
-proc_daily = 1
+proc_daily = 0
 proc_ensstd = 0
 proc_total_water = 0
-proc_daily_stats = 0
+proc_daily_stats = 1
 proc_ensstd_stats = 0
 proc_filter_diagnostics = 0
 proc_filter_diagnostics_gs = 0

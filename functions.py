@@ -23,7 +23,6 @@ from netCDF4 import Dataset
 from pathlib import Path
 from pyldas.functions import find_files
 
-
 def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
     # read in in situ data of water table depth time series and master table in csv format
     # read out modeled time series for nearest grid cell
@@ -39,10 +38,41 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
     # wtd_mod
     # precip_obs
 
+    """
+    Function to read
+    - in situ data of water table depth time series and master table in csv format
+    - modeled time series for location of in situ data (corresponding grid cell is selected
+    ! poros threshold 0.6 --> obs-mod pairs only for peat grid cells !
 
-    master_table = pd.read_csv(find_files(insitu_path, mastertable_filename),sep=';')
-    # replace black list with zeros in master table
-    # blacklist = pd.read_csv('/vsc-hard-mounts/leuven-data/329/vsc32924/in-situ_data/Blacklist/Blacklisted_stations.csv', sep=';')
+    Parameters
+    ----------
+    insitu_path : str
+        basic path for all peatland in situ data
+    exp : str
+        experiment name
+    domain : str
+        domain name
+    root : str
+        root path of simulation experiment
+
+    Returns
+    -------
+    data : pd.DataFrame
+        Content of the fortran binary file
+    wtd_obs : pd.DataFrame
+        wtd in situ time series
+    wtd_mod : pd.DataFrame
+        wtd model time series
+    precip_obs : pd.DataFrame
+        precip time series (meteo station at site, only sipalaga at the moment)
+    """
+
+    filenames = find_files(insitu_path, mastertable_filename)
+    for filename in filenames:
+        if filename.endswith('csv'):
+            master_table = pd.read_csv(filename, sep =';')
+        else:
+            logging.warning("some files, maybe swp files, exist that start with master table searchstring !")
 
     io = LDAS_io('daily', exp=exp, domain=domain, root=root)
     [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
@@ -55,48 +85,54 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
 
     for i,site_ID in enumerate(master_table.iloc[:,0]):
 
-        #if not site_ID.startswith('IN') and not site_ID.startswith('BR'):
-        # Only use sites in Indonesia and Brunei.
-        if not site_ID.startswith('CO'):
-        # Only use sites in Congo.
-            continue
-
-        #if blacklist.iloc[:, 0].str.contains(site_ID).any() or master_table.iloc[i,4] == 0:
         # If site is on the blacklist (contains bad data), or if "comparison" =  0, then don include that site in the dataframe.
-        if master_table.iloc[i,4] == 0:
+        if master_table['comparison_yes'][i] == 0:
             continue
 
         # Get lat lon from master table for site.
-        lon = master_table.iloc[i,1]
-        lat = master_table.iloc[i,2]
+        lon = master_table['lon'][i]
+        lat = master_table['lat'][i]
 
         # Get porosity for site lon lat.
         # Get M09 rowcol with data.
         col, row = io.grid.lonlat2colrow(lon, lat, domain=True)
-        # Get poros for col row.
-        siteporos = poros[row, col]
-
-
-        if siteporos <= 0.7:
-            # If the porosity of the site is 0.7 or lower the site is not classified as peatland in the model.
+        # Get poros for col row. + Check whether site is in domain, if not 'continue' with next site
+        try:
+            siteporos = poros[row, col]
+        except:
+            print(site_ID + " not in domain.")
             continue
 
-        if site_ID.startswith('IN'):
-            folder_wtd = insitu_path + '/Sipalaga/processed/WTD/Daily/'
-            folder_p = insitu_path + '/Sipalaga/processed/Precipitation/Daily/'
-            site_precip = site_ID
-        elif site_ID.startswith('BR'):
-            folder_wtd = insitu_path + '/Brunei/processed/WTD/Daily/'
-            folder_p = insitu_path + '/Brunei/processed/Precipitation/Daily/'
-            site_precip = 'Brunei_Darussalam'   # For Brunei the throughfall data are the average of data from four throughfall
-            # gauges along a 100 m transect. And Therefore its the same for all four stations.
-        elif site_ID.startswith('CO'):
-            folder_wtd = insitu_path + '/tropics/WTD/Congo/processed/Daily/'
+        if siteporos <= 0.60:
+            # If the porosity of the site is 0.6 or lower the site is not classified as peatland in the model.
+            print(site_ID + " not on a peatland grid cell.")
+            continue
 
+        #    folder_p = insitu_path + '/Sipalaga/processed/Precipitation/Daily/'
+        #    site_precip = site_ID
+        try:
+            if isinstance(find_files(insitu_path, site_ID),str):
+                filename_wtd = find_files(insitu_path, site_ID)
+            else:
+                filename_wtd = find_files(insitu_path, site_ID)[0]
+        except:
+            print(site_ID + " does not have a csv file with data.")
+            continue
+        # check for empty path
+        if len(filename_wtd)<10 or filename_wtd.endswith('csv')!=True or filename_wtd.count('Rainfall')>=1:
+            print("checking ... "+site_ID+" "+filename_wtd)
+            print("some other reason for no data for " +site_ID+" in "+filename_wtd)
+            continue
+
+        # cumbersome first site, next sides ... to be simplified ...
         if first_site == True:
             # Load in situ data.
             # wtd:
-            wtd_obs = pd.read_csv(folder_wtd + site_ID + '.csv')
+            print("reading ... "+filename_wtd)
+            wtd_obs = pd.read_csv(filename_wtd)
+            if wtd_obs.shape[1]==1:
+                print("csv file with semicolon ...")
+                wtd_obs = pd.read_csv(filename_wtd,sep=';')
             wtd_obs.columns = ['time', site_ID]
             wtd_obs['time'] = pd.to_datetime(wtd_obs['time'])
             wtd_obs = wtd_obs.set_index('time')
@@ -112,17 +148,19 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
 
             # Load model wtd data.
             wtd_mod = io.read_ts('zbar', lon, lat, lonlat=True)
-            wtd_mod = pd.DataFrame(wtd_mod)
-            wtd_mod.columns = [site_ID+b]
             # Check if overlapping data.
-            df_check = pd.concat((wtd_obs, wtd_mod), axis=1)
+            df_check = pd.concat((wtd_obs,wtd_mod), axis=1)
             no_overlap = pd.isnull(df_check).any(axis=1)
             if False in no_overlap.values:
                 first_site = False
         else:
             # Load in situ data.
             # wtd:
-            wtd_obs_tmp = pd.read_csv(folder_wtd + site_ID + '.csv')
+            print("reading ... "+filename_wtd)
+            wtd_obs_tmp = pd.read_csv(filename_wtd)
+            if wtd_obs_tmp.shape[1]==1:
+                print("csv file with semicolon ...")
+                wtd_obs_tmp = pd.read_csv(filename_wtd,sep=';')
             wtd_obs_tmp.columns = ['time', site_ID]
             wtd_obs_tmp['time'] = pd.to_datetime(wtd_obs_tmp['time'])
             wtd_obs_tmp = wtd_obs_tmp.set_index('time')
@@ -136,24 +174,26 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
                 precip_obs_tmp = wtd_obs_tmp.copy()
                 precip_obs_tmp[site_ID]=-9999
 
-
             # Load model data.
             wtd_mod_tmp = io.read_ts('zbar', lon, lat, lonlat=True)
 
-
             # Check if overlaping data.
-            df_check = pd.concat((wtd_obs_tmp, wtd_mod_tmp), axis=1)
+            df_check = pd.concat((wtd_obs_tmp,wtd_mod_tmp), axis=1)
             no_overlap = pd.isnull(df_check).any(axis=1)
             if False in no_overlap.values:
                 wtd_obs = pd.concat((wtd_obs, wtd_obs_tmp), axis=1)
                 wtd_mod = pd.concat((wtd_mod, wtd_mod_tmp), axis=1)
                 precip_obs = pd.concat((precip_obs, precip_obs_tmp), axis=1)
 
-
+    wtd_mod = pd.DataFrame(wtd_mod)
     wtd_mod.columns = wtd_obs.columns
 
     return wtd_obs, wtd_mod, precip_obs
 
+#################################################################
+#################################################################
+# functions used for Remote Sensing of Environment data assimilation paper
+# to be cleaned up after publication
 
 def ncfile_init(fname, lats, lons, species, tags):
 
@@ -415,8 +455,10 @@ def filter_diagnostics_evaluation(exp, domain, root, outputpath):
 
     tc = DA_innov.grid.tilecoord
     tg = DA_innov.grid.tilegrids
-    lons = DA_innov.grid.ease_lons[tc['i_indg'].min():(tc['i_indg'].max()+1)]
-    lats = DA_innov.grid.ease_lats[tc['j_indg'].min():(tc['j_indg'].max()+1)]
+    #lons = DA_innov.grid.ease_lons[tc['i_indg'].min():(tc['i_indg'].max()+1)]
+    #lats = DA_innov.grid.ease_lats[tc['j_indg'].min():(tc['j_indg'].max()+1)]
+    lons = lons[0,:]
+    lats = lats[:,0]
 
     species = DA_innov.timeseries['species'].values
 
@@ -465,7 +507,8 @@ def filter_diagnostics_evaluation(exp, domain, root, outputpath):
     for i_spc,spc in enumerate(species):
         logging.info('species %i' % (i_spc))
         tmp = DA_innov.timeseries['obs_obs'][:,i_spc,:,:].values
-        np.place(tmp,DA_innov.timeseries['obs_assim'][:,i_spc,:,:]!=-1,np.nan)
+        #np.place(tmp,DA_innov.timeseries['obs_assim'][:,i_spc,:,:]!=-1,np.nan)
+        tmp = np.where(DA_innov.timeseries['obs_assim'][:,i_spc,:,:]!=-1,np.nan,tmp)
         if mask_scaling_old == 1:
             np.place(tmp, mask_innov,np.nan)
         ds['obsvar_mean'][i_spc,:,:] = (DA_innov.timeseries['obs_obsvar'][:,i_spc,:,:]).mean(dim='time',skipna=True).values
@@ -476,7 +519,6 @@ def filter_diagnostics_evaluation(exp, domain, root, outputpath):
                                                   np.sqrt(DA_innov.timeseries['obs_obsvar'][:,i_spc,:,:] + DA_innov.timeseries['obs_fcstvar'][:,i_spc,:,:])).mean(dim='time',skipna=True).values
         ds['norm_innov_var'][i_spc,:,:] = ((tmp - DA_innov.timeseries['obs_fcst'][:,i_spc,:,:]) /
                                                  np.sqrt(DA_innov.timeseries['obs_obsvar'][:,i_spc,:,:] + DA_innov.timeseries['obs_fcstvar'][:,i_spc,:,:])).var(dim='time',skipna=True).values
-
         np.place(tmp, tmp==0., np.nan)
         np.place(tmp, tmp==-9999., np.nan)
         np.place(tmp, ~np.isnan(tmp), 1.)
@@ -501,11 +543,11 @@ def filter_diagnostics_evaluation(exp, domain, root, outputpath):
     ndays = io.timeseries['time'].size
     n3hourly = DA_incr.timeseries['time'].size
     # overwrite if exp does not contain CLSM
-    if exp.find("CLSM")<0:
+    if exp.find("_CLSM")<0:
         for row in range(DA_incr.timeseries['catdef'].shape[1]):
             logging.info('PCLSM row %i' % (row))
             for col in range(DA_incr.timeseries['catdef'].shape[2]):
-                if poros[row,col]>0.7:
+                if poros[row,col]>0.6:
                     catdef1 = pd.DataFrame(index=io.timeseries['time'].values + pd.Timedelta('12 hours'), data=io.timeseries['catdef'][:,row,col].values)
                     catdef1 = catdef1.resample('3H').max().interpolate()
                     ar1 = pd.DataFrame(index=io.timeseries['time'].values + pd.Timedelta('12 hours'), data=io.timeseries['ar1'][:,row,col].values)
@@ -596,8 +638,10 @@ def filter_diagnostics_evaluation_gs(exp, domain, root, outputpath):
 
     tc = DA_innov.grid.tilecoord
     tg = DA_innov.grid.tilegrids
-    lons = DA_innov.grid.ease_lons[tc['i_indg'].min():(tc['i_indg'].max()+1)]
-    lats = DA_innov.grid.ease_lats[tc['j_indg'].min():(tc['j_indg'].max()+1)]
+    #lons = DA_innov.grid.ease_lons[tc['i_indg'].min():(tc['i_indg'].max()+1)]
+    #lats = DA_innov.grid.ease_lats[tc['j_indg'].min():(tc['j_indg'].max()+1)]
+    lons = lons[0,:]
+    lats = lats[:,0]
 
     species = DA_innov.timeseries['species'].values
 
@@ -650,11 +694,11 @@ def filter_diagnostics_evaluation_gs(exp, domain, root, outputpath):
     ndays = io.timeseries['time'][gs_daily].size
     n3hourly = DA_incr.timeseries['time'].size
     # overwrite if exp does not contain CLSM
-    if exp.find("CLSM")<0:
+    if exp.find("_CLSM")<0:
         for row in range(DA_incr.timeseries['catdef'].shape[1]):
             logging.info('PCLSM row %i' % (row))
             for col in range(DA_incr.timeseries['catdef'].shape[2]):
-                if poros[row,col]>0.7:
+                if poros[row,col]>0.6:
                     catdef1 = pd.DataFrame(index=io.timeseries['time'].values + pd.Timedelta('12 hours'), data=io.timeseries['catdef'][:,row,col].values)
                     catdef1 = catdef1.resample('3H').max().interpolate()
                     ar1 = pd.DataFrame(index=io.timeseries['time'].values + pd.Timedelta('12 hours'), data=io.timeseries['ar1'][:,row,col].values)
@@ -721,8 +765,10 @@ def anomaly_JulyAugust_zbar(exp, domain, root, outputpath):
 
     tc = io.grid.tilecoord
     tg = io.grid.tilegrids
-    lons = io.grid.ease_lons[tc['i_indg'].min():(tc['i_indg'].max()+1)]
-    lats = io.grid.ease_lats[tc['j_indg'].min():(tc['j_indg'].max()+1)]
+    #lons = io.grid.ease_lons[tc['i_indg'].min():(tc['i_indg'].max()+1)]
+    #lats = io.grid.ease_lats[tc['j_indg'].min():(tc['j_indg'].max()+1)]
+    lons = lons[0,:]
+    lats = lats[:,0]
     dimensions = OrderedDict([('lat',lats), ('lon',lons)])
     ds = ncfile_init_incr(result_file, dimensions, tags)
     #clons = np.all(np.vstack((lons>60.,lons<90)),axis=0)
@@ -782,8 +828,10 @@ def filter_diagnostics_evaluation_incr(exp, domain, root, outputpath):
 
     tc = DA_innov.grid.tilecoord
     tg = DA_innov.grid.tilegrids
-    lons = DA_innov.grid.ease_lons[tc['i_indg'].min():(tc['i_indg'].max()+1)]
-    lats = DA_innov.grid.ease_lats[tc['j_indg'].min():(tc['j_indg'].max()+1)]
+    #lons = DA_innov.grid.ease_lons[tc['i_indg'].min():(tc['i_indg'].max()+1)]
+    #lats = DA_innov.grid.ease_lats[tc['j_indg'].min():(tc['j_indg'].max()+1)]
+    lons = lons[0,:]
+    lats = lats[:,0]
 
     species = DA_innov.timeseries['species'].values
 
@@ -844,6 +892,7 @@ def filter_diagnostics_evaluation_incr(exp, domain, root, outputpath):
         np.place(DA_innov.timeseries['obs_obs'][:,i_spc,:,:].values, DA_innov.timeseries['obs_obs'][:,i_spc,:,:].values==-9999., np.nan)
         np.place(DA_innov.timeseries['obs_obs'][:,i_spc,:,:].values, ~np.isnan(DA_innov.timeseries['obs_obs'][:,i_spc,:,:].values), 1.)
         np.place(DA_innov.timeseries['obs_obs'][:,i_spc,:,:].values, np.isnan(DA_innov.timeseries['obs_obs'][:,i_spc,:,:].values), 0.)
+        DA_innov.timeseries['obs_obs'][:,i_spc,:,:].values = np.where(np.isnan(DA_innov.timeseries['obs_obs'][:,i_spc,:,:].values),0,DA_innov.timeseries['obs_obs'][:,i_spc,:,:].values)
         ds['n_valid_innov'][i_spc,:, :] = DA_innov.timeseries['obs_obs'][:,i_spc,:,:].values.sum(axis=0)
 
     del mask_innov
@@ -860,11 +909,11 @@ def filter_diagnostics_evaluation_incr(exp, domain, root, outputpath):
     ndays = io.timeseries['time'].size
     n3hourly = DA_incr.timeseries['time'].size
     # overwrite if exp does not contain CLSM
-    if exp.find("CLSM")<0:
+    if exp.find("_CLSM")<0:
         for row in range(DA_incr.timeseries['catdef'].shape[1]):
             logging.info('PCLSM row %i' % (row))
             for col in range(DA_incr.timeseries['catdef'].shape[2]):
-                if poros[row,col]>0.7:
+                if poros[row,col]>0.6:
                     catdef1 = pd.DataFrame(index=io.timeseries['time'].values + pd.Timedelta('12 hours'), data=io.timeseries['catdef'][:,row,col].values)
                     catdef1 = catdef1.resample('3H').max().interpolate()
                     ar1 = pd.DataFrame(index=io.timeseries['time'].values + pd.Timedelta('12 hours'), data=io.timeseries['ar1'][:,row,col].values)
@@ -920,14 +969,17 @@ def daily_stats(exp, domain, root, outputpath, stat):
     catparam = io.read_params('catparam')
     poros = np.full(lons.shape, np.nan)
     poros[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['poros'].values
+    poros[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['poros'].values
     bf1 = np.full(lons.shape, np.nan)
     bf1[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['bf1'].values
     bf2 = np.full(lons.shape, np.nan)
     bf2[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['bf2'].values
     tc = io.grid.tilecoord
     tg = io.grid.tilegrids
-    lons = io.grid.ease_lons[tc['i_indg'].min():(tc['i_indg'].max()+1)]
-    lats = io.grid.ease_lats[tc['j_indg'].min():(tc['j_indg'].max()+1)]
+    #lons = io.grid.ease_lons[tc['i_indg'].min():(tc['i_indg'].max()+1)]
+    #lats = io.grid.ease_lats[tc['j_indg'].min():(tc['j_indg'].max()+1)]
+    lons = lons[0,:]
+    lats = lats[:,0]
     dimensions = OrderedDict([('lat',lats), ('lon',lons)])
 
     #cvars = ['total_water']
@@ -940,10 +992,10 @@ def daily_stats(exp, domain, root, outputpath, stat):
             ds[cvar][:,:] = io.timeseries[cvar][:,:,:].std(dim='time',skipna=True).values
 
     x,y = get_cdf_integral_xy()
-    if exp.find("CLSM")<0:
+    if exp.find("_CLSM")<0:
         for row in range(io.timeseries['catdef'].shape[1]):
             for col in range(io.timeseries['catdef'].shape[2]):
-                if poros[row,col]>0.7:
+                if poros[row,col]>0.6:
                     S_ar1 = np.interp(io.timeseries['zbar'][:,row,col].values,x,y)
                     catdef = io.timeseries['catdef'][:,row,col].values
                     catdef_total = -S_ar1*1000.0 + catdef
@@ -977,8 +1029,10 @@ def ensstd_stats(exp, domain, root, outputpath, stat):
     bf2[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['bf2'].values
     tc = io.grid.tilecoord
     tg = io.grid.tilegrids
-    lons = io.grid.ease_lons[tc['i_indg'].min():(tc['i_indg'].max()+1)]
-    lats = io.grid.ease_lats[tc['j_indg'].min():(tc['j_indg'].max()+1)]
+    #lons = io.grid.ease_lons[tc['i_indg'].min():(tc['i_indg'].max()+1)]
+    #lats = io.grid.ease_lats[tc['j_indg'].min():(tc['j_indg'].max()+1)]
+    lons = lons[0,:]
+    lats = lats[:,0]
     dimensions = OrderedDict([('lat',lats), ('lon',lons)])
 
     cvars = ['sfmc','rzmc','catdef','total_water','tp1','tsurf']
@@ -999,10 +1053,10 @@ def ensstd_stats(exp, domain, root, outputpath, stat):
                 ds[cvar][:,:] = io.timeseries[cvar][:,:,:].std(dim='time',skipna=True).values
 
     x,y = get_cdf_integral_xy()
-    if (exp.find("CLSM")<0) & (cvars[0]!='zbar'):
+    if (exp.find("_CLSM")<0) & (cvars[0]!='zbar'):
         for row in range(io.timeseries['catdef'].shape[1]):
             for col in range(io.timeseries['catdef'].shape[2]):
-                if poros[row,col]>0.7:
+                if poros[row,col]>0.6:
                     catdef = io.timeseries['catdef'][:,row,col].values
                     zbar = -1.0*(np.sqrt(0.000001+catdef/bf1[row,col])-bf2[row,col])
                     S_ar1 = np.interp(zbar,x,y)
