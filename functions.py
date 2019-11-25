@@ -68,11 +68,15 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
     """
 
     filenames = find_files(insitu_path, mastertable_filename)
-    for filename in filenames:
-        if filename.endswith('csv'):
-            master_table = pd.read_csv(filename, sep =';')
-        else:
-            logging.warning("some files, maybe swp files, exist that start with master table searchstring !")
+    if isinstance(find_files(insitu_path, mastertable_filename),str):
+        master_table = pd.read_csv(filenames, sep =';')
+    else:
+        for filename in filenames:
+            if filename.endswith('csv'):
+                master_table = pd.read_csv(filename, sep =';')
+                continue
+            else:
+                logging.warning("some files, maybe swp files, exist that start with master table searchstring !")
 
     io = LDAS_io('daily', exp=exp, domain=domain, root=root)
     [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
@@ -112,8 +116,8 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
         #    site_precip = site_ID
         try:
             if isinstance(find_files(insitu_path, site_ID),str):
-                print(filename_wtd)
                 filename_wtd = find_files(insitu_path, site_ID)
+                print(filename_wtd)
             else:
                 flist = find_files(insitu_path, site_ID)
                 for f in flist:
@@ -182,6 +186,8 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
             wtd_mod_tmp = io.read_ts('zbar', lon, lat, lonlat=True)
 
             # Check if overlaping data.
+            if site_ID.startswith('Taka1_Palangkraya_da'):
+                print('s')
             df_check = pd.concat((wtd_obs_tmp,wtd_mod_tmp), axis=1)
             no_overlap = pd.isnull(df_check).any(axis=1)
             if False in no_overlap.values:
