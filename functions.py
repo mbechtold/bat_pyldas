@@ -112,9 +112,13 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
         #    site_precip = site_ID
         try:
             if isinstance(find_files(insitu_path, site_ID),str):
+                print(filename_wtd)
                 filename_wtd = find_files(insitu_path, site_ID)
             else:
-                filename_wtd = find_files(insitu_path, site_ID)[0]
+                flist = find_files(insitu_path, site_ID)
+                for f in flist:
+                    if f.count('aily')>=1:
+                        filename_wtd = f
         except:
             print(site_ID + " does not have a csv file with data.")
             continue

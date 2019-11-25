@@ -17,8 +17,8 @@ from bat_pyldas.plotting import *
 from bat_pyldas.functions import read_wtd_data
 from validation_good_practice.ancillary import metrics
 
-plot_maps = 1
-plot_insitu = 0
+plot_maps = 0
+plot_insitu = 1
 plot_insitu_multiple_exp = 0
 
 # maps
@@ -37,7 +37,7 @@ if plot_insitu==1:
     ## in situ data
     root='/scratch/leuven/317/vsc31786/output/TROPICS'
     exp = 'CONGO_M09_PEATCLSMTN_v01'
-    #exp = 'INDONESIA_M09_PEATCLSMTN_v01'
+    exp = 'INDONESIA_M09_PEATCLSMTN_v01'
     domain = 'SMAP_EASEv2_M09'
     outpath = '/staging/leuven/stg_00024/OUTPUT/michelb/FIG_tmp/TROPICS'
     os.makedirs(outpath,exist_ok=True)
