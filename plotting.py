@@ -19,6 +19,7 @@ from scipy.interpolate import interp2d
 from validation_good_practice.ancillary import metrics
 import sys
 import seaborn
+import copy
 
 def assign_units(var):
 
@@ -127,9 +128,11 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, exp, outpath)
         df_tmp = pd.concat((wtd_obs[site],wtd_mod[site]),axis=1)
         df_tmp.columns = ['data_obs','data_mod']
 
-        bias_site = metrics.bias(df_tmp) # Bias = bias_site[0]
-        ubRMSD_site = metrics.ubRMSD(df_tmp) # ubRMSD = ubRMSD_site[0]
-        pearson_R_site = metrics.Pearson_R(df_tmp) # Pearson_R = pearson_R_site[0]
+        df_tmp2=copy.deepcopy(df_tmp)
+
+        bias_site = metrics.bias(df_tmp2) # Bias = bias_site[0]
+        ubRMSD_site = metrics.ubRMSD(df_tmp2) # ubRMSD = ubRMSD_site[0]
+        pearson_R_site = metrics.Pearson_R(df_tmp2) # Pearson_R = pearson_R_site[0]
         RMSD_site = (ubRMSD_site[0]**2 + bias_site[0]**2)**0.5
 
         # Save metrics in df_metrics.
@@ -139,12 +142,12 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, exp, outpath)
         df_metrics.loc[site]['RMSD'] = RMSD_site
 
         # Create x-axis matching in situ data.
-        x_start = df_tmp.index[0]  # Start a-axis with the first day with an observed wtd value.
-        x_end = df_tmp.index[-1]   # End a-axis with the last day with an observed wtd value.
+        x_start = df_tmp2.index[0]  # Start a-axis with the first day with an observed wtd value.
+        x_end = df_tmp2.index[-1]   # End a-axis with the last day with an observed wtd value.
         Xlim = [x_start, x_end]
 
         # Calculate z-score for the time series.
-        df_zscore = df_tmp.apply(zscore)
+        df_zscore = df_tmp2.apply(zscore)
 
         plt.figure(figsize=(16, 6.5))
         fontsize = 12
