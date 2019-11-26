@@ -147,20 +147,23 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, exp, outpath)
         Xlim = [x_start, x_end]
 
         # Calculate z-score for the time series.
+
         df_zscore = df_tmp2.apply(zscore)
 
         plt.figure(figsize=(16, 6.5))
         fontsize = 12
 
         ax1 = plt.subplot(311)
-        df_tmp.plot(ax=ax1, fontsize=fontsize, style=['.','-'], linewidth=2, xlim=Xlim)
+        df_tmp =df_tmp[['data_mod','data_obs']]
+        df_tmp.plot(ax=ax1, fontsize=fontsize, style=['-','.'], linewidth=2, xlim=Xlim)
         plt.ylabel('zbar [m]')
 
         Title = site + '\n' + ' bias = ' + str(bias_site[0]) + ', ubRMSD = ' + str(ubRMSD_site[0]) + ', Pearson_R = ' + str(pearson_R_site[0]) + ', RMSD = ' + str(RMSD_site)
         plt.title(Title)
 
         ax2 = plt.subplot(312)
-        df_zscore.plot(ax=ax2, fontsize=fontsize, style=['.','-'], linewidth=2, xlim=Xlim)
+        df_zscore = df_zscore[['data_mod', 'data_obs']]
+        df_zscore.plot(ax=ax2, fontsize=fontsize, style=['-','.'], linewidth=2, xlim=Xlim)
         plt.ylabel('z-score')
 
         ax3 = plt.subplot(313)
