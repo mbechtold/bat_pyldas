@@ -198,6 +198,7 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
     wtd_mod = pd.DataFrame(wtd_mod)
     wtd_mod.columns = wtd_obs.columns
 
+    wtd_mod_export_csv = wtd_mod.to_csv (r'/data/leuven/317/vsc31786/peatland_data/tropics/WTD/Sipalaga/processed/WTD/model_WTD/model_WTD_Drained.csv', index = True, header=True)
     return wtd_obs, wtd_mod, precip_obs
 
 #################################################################

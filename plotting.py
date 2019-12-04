@@ -38,6 +38,8 @@ def assign_units(var):
         unit = '[mm/day]'
     elif var == 'zbar':
         unit = '[m]'
+    else:
+        unit =['not_known']
     return(unit)
 
 def plot_all_variables_temporal_moments(exp, domain, root, outpath):
@@ -69,7 +71,7 @@ def plot_all_variables_temporal_moments(exp, domain, root, outpath):
         if varname=='evap':
             cmin=0
             cmax=5
-        plot_title=varname+" "+assign_units(varname)
+        plot_title=varname
         fname=varname+'_mean'
         #plot_title='zbar [m]'
         figure_single_default(data=tmp_data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
@@ -155,7 +157,7 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, exp, outpath)
 
         ax1 = plt.subplot(311)
         df_tmp =df_tmp[['data_mod','data_obs']]
-        df_tmp.plot(ax=ax1, fontsize=fontsize, style=['-','.'], linewidth=2, xlim=Xlim)
+        df_tmp.plot(ax=ax1, fontsize=fontsize, style=['-','.'], color=['b','#1f77b4'], linewidth=2, xlim=Xlim)
         plt.ylabel('zbar [m]')
 
         Title = site + '\n' + ' bias = ' + str(bias_site[0]) + ', ubRMSD = ' + str(ubRMSD_site[0]) + ', Pearson_R = ' + str(pearson_R_site[0]) + ', RMSD = ' + str(RMSD_site)
@@ -163,11 +165,11 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, exp, outpath)
 
         ax2 = plt.subplot(312)
         df_zscore = df_zscore[['data_mod', 'data_obs']]
-        df_zscore.plot(ax=ax2, fontsize=fontsize, style=['-','.'], linewidth=2, xlim=Xlim)
+        df_zscore.plot(ax=ax2, fontsize=fontsize, style=['-','.'], color=['b','#1f77b4'], linewidth=2, xlim=Xlim)
         plt.ylabel('z-score')
 
         ax3 = plt.subplot(313)
-        precip_obs[site].plot(ax=ax3, fontsize=fontsize, style=['.'], linewidth=2, xlim=Xlim)
+        precip_obs[site].plot(ax=ax3, fontsize=fontsize, style=['.','.'], color=['b','#1f77b4'], linewidth=2, xlim=Xlim)
         plt.ylabel('precipitation [mm/d]')
 
         plt.tight_layout()
@@ -188,35 +190,52 @@ def plot_skillmetrics_comparison_wtd_multimodel(wtd_obs, wtd_mod, precip_obs, ex
 
     # Initiate dataframe to store metrics in.
     INDEX = wtd_obs.columns
+    COL = ['bias', 'ubRMSD', 'Pearson_R', 'RMSD']
+    df_metrics = pd.DataFrame(index=INDEX, columns=COL, dtype=float)
 
     for c,site in enumerate(wtd_obs.columns):
 
         df_tmp = pd.concat((wtd_obs[site], wtd_mod[0][site],wtd_mod[1][site],wtd_mod[2][site]),axis=1)
         df_tmp.columns = ['In-situ','North','Tropics-N','Tropics-D']
 
+        df_tmp2 = copy.deepcopy(df_tmp)
+
+        bias_site = metrics.bias(df_tmp2) # Bias = bias_site[0]
+        ubRMSD_site = metrics.ubRMSD(df_tmp2) # ubRMSD = ubRMSD_site[0]
+        pearson_R_site = metrics.Pearson_R(df_tmp2) # Pearson_R = pearson_R_site[0]
+        RMSD_site = (ubRMSD_site[0]**2 + bias_site[0]**2)**0.5
+
+        # Save metrics in df_metrics.
+        df_metrics.loc[site]['bias'] = bias_site[0]
+        df_metrics.loc[site]['ubRMSD'] =  ubRMSD_site[0]
+        df_metrics.loc[site]['Pearson_R'] = pearson_R_site[0]
+        df_metrics.loc[site]['RMSD'] = RMSD_site
+
         # Create x-axis matching in situ data.
-        x_start = df_tmp.index[0]  # Start a-axis with the first day with an observed wtd value.
-        x_end = df_tmp.index[-1]   # End a-axis with the last day with an observed wtd value.
+        x_start = df_tmp2.index[0]  # Start a-axis with the first day with an observed wtd value.
+        x_end = df_tmp2.index[-1]   # End a-axis with the last day with an observed wtd value.
         Xlim = [x_start, x_end]
 
         # Calculate z-score for the time series.
-        df_zscore = df_tmp.dropna(axis=0).apply(zscore)
+        df_zscore = df_tmp2.dropna(axis=0).apply(zscore)
 
         plt.figure(figsize=(16, 6.5))
         fontsize = 12
 
         ax1 = plt.subplot(311)
-        df_tmp.plot(ax=ax1, fontsize=fontsize, style=['.','-','-','-'], linewidth=2, xlim=Xlim)
+        df_tmp =df_tmp[['North','Tropics-N', 'Tropics-D','In-situ']]
+        df_tmp.plot(ax=ax1, fontsize=fontsize, style=['-','-','-','.'], color=['orange','g','m','#1f77b4'],linewidth=1.7, xlim=Xlim)
         plt.ylabel('zbar [m]')
 
         plt.title(site)
 
         ax1 = plt.subplot(312)
-        df_tmp.plot(ax=ax1, fontsize=fontsize, style=['.','-','-','-'], linewidth=2, xlim=[df_zscore.index[0],df_zscore.index[-1]])
+        df_tmp.plot(ax=ax1, fontsize=fontsize, style=['-','-','-','.'], color=['orange','g','m','#1f77b4'],linewidth=1.7, xlim=[df_zscore.index[0],df_zscore.index[-1]])
         plt.ylabel('zbar [m]')
 
         ax2 = plt.subplot(313)
-        df_zscore.plot(ax=ax2, fontsize=fontsize, style=['.','-','-','-'], linewidth=2, xlim=[df_zscore.index[0],df_zscore.index[-1]])
+        df_zscore = df_zscore[['North','Tropics-N', 'Tropics-D','In-situ']]
+        df_zscore.plot(ax=ax2, fontsize=fontsize, style=['-','-','-','.'], color=['orange','g','m','#1f77b4'],linewidth=1.7, xlim=[df_zscore.index[0],df_zscore.index[-1]])
         plt.ylabel('z-score')
 
         plt.legend()
