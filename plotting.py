@@ -63,8 +63,8 @@ def plot_all_variables_temporal_moments(exp, domain, root, outpath):
         cmax = None
         plot_title=varname
         if varname=='zbar':
-            cmin=-0.6
-            cmax=-0.1
+            cmin=-1.2
+            cmax=-0.05
         if varname=='runoff':
             cmin=0
             cmax=5
@@ -157,7 +157,7 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, exp, outpath)
 
         ax1 = plt.subplot(311)
         df_tmp =df_tmp[['data_mod','data_obs']]
-        df_tmp.plot(ax=ax1, fontsize=fontsize, style=['-','.'], color=['g','#1f77b4'], linewidth=2, xlim=Xlim)
+        df_tmp.plot(ax=ax1, fontsize=fontsize, style=['-','.'], color=['y','#1f77b4'], linewidth=2, xlim=Xlim)
         plt.ylabel('zbar [m]')
 
         Title = site + '\n' + ' bias = ' + str(bias_site[0]) + ', ubRMSD = ' + str(ubRMSD_site[0]) + ', Pearson_R = ' + str(pearson_R_site[0]) + ', RMSD = ' + str(RMSD_site)
@@ -165,11 +165,11 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, exp, outpath)
 
         ax2 = plt.subplot(312)
         df_zscore = df_zscore[['data_mod', 'data_obs']]
-        df_zscore.plot(ax=ax2, fontsize=fontsize, style=['-','.'], color=['g','#1f77b4'], linewidth=2, xlim=Xlim)
+        df_zscore.plot(ax=ax2, fontsize=fontsize, style=['-','.'], color=['y','#1f77b4'], linewidth=2, xlim=Xlim)
         plt.ylabel('z-score')
 
         ax3 = plt.subplot(313)
-        precip_obs[site].plot(ax=ax3, fontsize=fontsize, style=['.','.'], color=['g','#1f77b4'], linewidth=2, xlim=Xlim)
+        precip_obs[site].plot(ax=ax3, fontsize=fontsize, style=['.','.'], color=['y','#1f77b4'], linewidth=2, xlim=Xlim)
         plt.ylabel('precipitation [mm/d]')
 
         plt.tight_layout()
@@ -185,6 +185,11 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, exp, outpath)
     fname_long = os.path.join(outpath + '/comparison_insitu_data/' + fname + '.png')
     plt.savefig(fname_long, dpi=150)
     plt.close()
+
+    #sebastian added     # save skillmetrics in csvfile
+    #path_changing = os.path.join(outpath + '/comparison_insitu_data/' + 'skillmetrics_parameters.csv')
+    #skillmetrics_parameters_csv = df_metrics.to_csv (path_changing, index = True, header=True)
+
 
 def plot_skillmetrics_comparison_wtd_multimodel(wtd_obs, wtd_mod, precip_obs, exp, outpath):
 

@@ -94,11 +94,11 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
             continue
 
  #sebastian added       #to select only the drained of only the natural ones to calculate skill metrics!
-        #if master_table['drained_U=uncertain'][i] == 'D':
-        #    continue
+        if master_table['drained_U=uncertain'][i] == 'N':
+            continue
 
-        #if master_table['drained_U=uncertain'][i] == 'U':
-        #    continue
+        if master_table['drained_U=uncertain'][i] == 'U':
+            continue
 
         # Get lat lon from master table for site.
         lon = master_table['lon'][i]

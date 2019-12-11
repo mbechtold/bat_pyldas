@@ -25,11 +25,11 @@ plot_insitu_multiple_exp = 0
 # maps
 if plot_maps==1:
     root='/staging/leuven/stg_00024/OUTPUT/sebastiana'
-    exp = 'CONGO_M09_PEATCLSMTN_v01'
+    exp = 'INDONESIA_M09_PEATCLSMTD_v01'
     domain = 'SMAP_EASEv2_M09'
-    outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/CO/Natural'
+    outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/IN/Drained'
     # Catchment Parameters
-    # plot_catparams(exp, domain, root, outpath)
+    plot_catparams(exp, domain, root, outpath)
     # Temporal mean and standard deviation of variables
     plot_all_variables_temporal_moments(exp, domain, root, outpath)
 
@@ -38,9 +38,9 @@ if plot_insitu==1:
     ## in situ data
     root='/staging/leuven/stg_00024/OUTPUT/sebastiana'
     exp = 'CONGO_M09_PEATCLSMTN_v01'
-    exp = 'INDONESIA_M09_PEATCLSMTN_v01'
+    exp = 'INDONESIA_M09_PEATCLSM_v01'
     domain = 'SMAP_EASEv2_M09'
-    outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/IN/Natural'
+    outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/IN/Northern/Drained_sites'
     os.makedirs(outpath,exist_ok=True)
     insitu_path = '/data/leuven/317/vsc31786/peatland_data/tropics/WTD'
     mastertable_filename = 'WTD_TROPICS_MASTER_TABLE.csv'
