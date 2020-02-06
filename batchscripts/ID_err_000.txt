@@ -1,0 +1,17 @@
+/var/spool/torque/mom_priv/jobs/50136729.tier2-p-moab-2.tier2.hpc.kuleuven.be.SC: line 19: nohup_exp03a.out: Permission denied
+/var/spool/torque/mom_priv/jobs/50136729.tier2-p-moab-2.tier2.hpc.kuleuven.be.SC: line 18: nohup_exp02.out: Permission denied
+/var/spool/torque/mom_priv/jobs/50136729.tier2-p-moab-2.tier2.hpc.kuleuven.be.SC: line 17: nohup_exp01.out: Permission denied
+/var/spool/torque/mom_priv/jobs/50136729.tier2-p-moab-2.tier2.hpc.kuleuven.be.SC: line 20: nohup_exp03b.out: Permission denied
+/var/spool/torque/mom_priv/jobs/50136731.tier2-p-moab-2.tier2.hpc.kuleuven.be.SC: line 17: nohup_exp01.out: Permission denied
+/var/spool/torque/mom_priv/jobs/50136731.tier2-p-moab-2.tier2.hpc.kuleuven.be.SC: line 18: nohup_exp02.out: Permission denied
+/var/spool/torque/mom_priv/jobs/50136731.tier2-p-moab-2.tier2.hpc.kuleuven.be.SC: line 19: nohup_exp03a.out: Permission denied
+/var/spool/torque/mom_priv/jobs/50136731.tier2-p-moab-2.tier2.hpc.kuleuven.be.SC: line 20: nohup_exp03b.out: Permission denied
+/var/spool/torque/mom_priv/jobs/50136732.tier2-p-moab-2.tier2.hpc.kuleuven.be.SC: line 19: nohup_exp03a.out: Permission denied
+/var/spool/torque/mom_priv/jobs/50136732.tier2-p-moab-2.tier2.hpc.kuleuven.be.SC: line 18: nohup_exp02.out: Permission denied
+/var/spool/torque/mom_priv/jobs/50136732.tier2-p-moab-2.tier2.hpc.kuleuven.be.SC: line 17: nohup_exp01.out: Permission denied
+/var/spool/torque/mom_priv/jobs/50136732.tier2-p-moab-2.tier2.hpc.kuleuven.be.SC: line 20: nohup_exp03b.out: Permission denied
+/var/spool/torque/mom_priv/jobs/50136858.tier2-p-moab-2.tier2.hpc.kuleuven.be.SC: line 14: /data/leuven/324/vsc32460/miniconda/bin/activate: No such file or directory
+/var/spool/torque/mom_priv/jobs/50148673.tier2-p-moab-2.tier2.hpc.kuleuven.be.SC: line 21: 13798 Segmentation fault      (core dumped) nohup process_ldas_output_default.py -r /scratch/leuven/317/vsc31786/output/TROPICS/ -e SAMERICA_M09_CLSM_v01 -d SMAP_EASEv2_M09 &>nohup_exp01.out
+/var/spool/torque/mom_priv/jobs/50148673.tier2-p-moab-2.tier2.hpc.kuleuven.be.SC: line 21: 13799 Segmentation fault      (core dumped) nohup process_ldas_output_default.py -r /scratch/leuven/317/vsc31786/output/TROPICS/ -e SAMERICA_M09_PEATCLSM_v01 -d SMAP_EASEv2_M09 &>nohup_exp02.out
+/var/spool/torque/mom_priv/jobs/50148673.tier2-p-moab-2.tier2.hpc.kuleuven.be.SC: line 21: 13800 Segmentation fault      (core dumped) nohup process_ldas_output_default.py -r /scratch/leuven/317/vsc31786/output/TROPICS/ -e SAMERICA_M09_PEATCLSMTN_v01 -d SMAP_EASEv2_M09 &>nohup_exp03a.out
+/var/spool/torque/mom_priv/jobs/50148673.tier2-p-moab-2.tier2.hpc.kuleuven.be.SC: line 21: 13801 Segmentation fault      (core dumped) nohup process_ldas_output_default.py -r /scratch/leuven/317/vsc31786/output/TROPICS/ -e SAMERICA_M09_PEATCLSMTD_v01 -d SMAP_EASEv2_M09 &>nohup_exp03b.out

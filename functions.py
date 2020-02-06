@@ -93,8 +93,20 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
         if master_table['comparison_yes'][i] == 0:
             continue
 
+ #sebastian added       #to select only the drained of only the natural ones to calculate skill metrics!
+        if master_table['drained_U=uncertain'][i] == 'N':
+            continue
+
+        if master_table['drained_U=uncertain'][i] == 'U':
+            continue
+
         # Get lat lon from master table for site.
         lon = master_table['lon'][i]
+
+# sebastian added   # to skip a site if there is no lon or lat when all are used instead of only the comparison =1 ones.
+        #if np.isnan(lon):
+        #    continue
+
         lat = master_table['lat'][i]
 
         # Get porosity for site lon lat.
@@ -198,6 +210,8 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
     wtd_mod = pd.DataFrame(wtd_mod)
     wtd_mod.columns = wtd_obs.columns
 
+ #Sebastian added   #to create the csv files for Susan Page
+    #wtd_mod_export_csv = wtd_mod.to_csv (r'/data/leuven/317/vsc31786/peatland_data/tropics/WTD/Sipalaga/processed/WTD/model_WTD/model_WTD_Natural.csv', index = True, header=True)
     return wtd_obs, wtd_mod, precip_obs
 
 #################################################################
