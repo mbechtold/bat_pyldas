@@ -19,6 +19,8 @@ from scipy.interpolate import interp2d
 from validation_good_practice.ancillary import metrics
 import sys
 import seaborn
+from scipy import stats
+import pymannkendall as mk
 
 def assign_units(var):
 
@@ -37,6 +39,8 @@ def assign_units(var):
         unit = '[mm/day]'
     elif var == 'zbar':
         unit = '[m]'
+    else:
+        unit = ''
     return(unit)
 
 def plot_all_variables_temporal_moments(exp, domain, root, outpath):
@@ -379,7 +383,24 @@ def plot_peat_and_sites(exp, domain, root, outpath):
     #lat=48.
     #lon=51.0
     x,y=m(sites['Lon'].values,sites['Lat'].values)
-    m.plot(x,y,'.',color=(0./255,0./255,0./255),markersize=12,markeredgewidth=1.5,mfc='none')
+    if np.mean(lats)>40:
+        m.plot(x,y,'.',color=(0./255,0./255,0./255),markersize=12,markeredgewidth=1.5,mfc='none')
+    else:
+        insitu_path = '/data/leuven/317/vsc31786/peatland_data/tropics/WTD'
+        mastertable_filename = 'WTD_TROPICS_MASTER_TABLE.csv'
+        filenames = find_files(insitu_path, mastertable_filename)
+        if isinstance(find_files(insitu_path, mastertable_filename),str):
+            master_table = pd.read_csv(filenames, sep =';')
+        else:
+            for filename in filenames:
+                if filename.endswith('csv'):
+                    master_table = pd.read_csv(filename, sep =';')
+                    cond = master_table['comparison_yes']==1
+                    continue
+                else:
+                    logging.warning("some files, maybe swp files, exist that start with master table searchstring !")
+        x,y=m(master_table['lon'].values[cond],master_table['lat'].values[cond])
+        m.plot(x,y,'.',color=(0./255,0./255,0./255),markersize=12,markeredgewidth=1.5,mfc='none')
 
     im=m.pcolormesh(lons,lats,plt_img,cmap=cmap,latlon=True)
     im.set_clim(vmin=cbrange[0],vmax=cbrange[1])
@@ -412,6 +433,122 @@ def plot_peat_and_sites(exp, domain, root, outpath):
 ##########################################################################################################################################################
 ##########################################################################################################################################################
 # DA stuff, to be cleaned up after Remote Sensing of Environment paper acceptance
+
+def plot_all_variables_trends(exp, domain, root, outpath):
+
+    # plot linear trends of variables
+    outpath = os.path.join(outpath, exp, 'maps', 'stats')
+    if not os.path.exists(outpath):
+        os.makedirs(outpath,exist_ok=True)
+
+    io = LDAS_io('daily', exp=exp, domain=domain, root=root)
+    latmin=40.
+    latmax=70.
+    lonmin=-170.
+    lonmax=-50.
+    [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
+
+
+    # mean
+    for varname, da in io.images.data_vars.items():
+        if varname not in ['evap','Tair','Rainf','zbar']:
+            continue
+        tmp_data = da
+
+        #JJA_annual = tmp_data.where((tmp_data['time.season'] == 'JJA')).groupby('time.year').max(dim='time')
+        JJA_annual = tmp_data.where((tmp_data['time.month'] >= 7) & (tmp_data['time.month'] <= 9)).groupby('time.year').max(dim='time')
+        #JJA_annual = tmp_data.where((tmp_data['time.month'] >= 1) & (tmp_data['time.month'] <= 12)).groupby('time.year').max(dim='time')
+        vals = JJA_annual.variable.values
+        years = JJA_annual.year
+        #col, row = io.grid.lonlat2colrow(-107.5, 54.8, domain=True)
+        #plt.figure(figsize=(8, 8.5))
+        #plt.plot(years,vals[:,row,col],'.')
+        #plt.savefig(outpath+'/'+varname+'_x.png',dpi=150)
+        vals2 = vals.reshape(len(years), -1)
+        mask1 = (np.isnan(vals2)).any(axis=0)==False
+        # Do a first-degree polyfit
+        idx = np.where((np.isnan(vals2)).any(axis=0)==False)[0]
+        #stats.mstats.theilslopes(vals2[:,idx],years)
+        regressions_tmp = np.polyfit(years, vals2[:,idx], 1)
+        regressions_tmp_lo = np.polyfit(years, vals2[:,idx], 1)
+        regressions_tmp_up = np.polyfit(years, vals2[:,idx], 1)
+        for counter, value in enumerate(idx):
+            ctheil= stats.mstats.theilslopes(vals2[:,value],years, alpha=0.90)
+            regressions_tmp_lo[0,counter] = ctheil[2]
+            regressions_tmp_up[0,counter] = ctheil[3]
+            result = mk.original_test(vals2[:,value])
+            #if (regressions_tmp_lo[0,counter] * regressions_tmp_up[0,counter]) >= 0:
+            if result[0]!='no trend':
+                regressions_tmp[0,counter] = ctheil[0]
+            else:
+                regressions_tmp[0,counter] = 0.
+        regressions = np.zeros([2,vals2.shape[1]])
+        regressions[:] = np.nan
+        regressions[:,idx]=regressions_tmp
+        # Get the coefficients back
+        trends = regressions[0,:].reshape(vals.shape[1], vals.shape[2])
+        cmap = plt.get_cmap('PiYG')
+        cmin = np.min([np.nanmin(trends),-np.nanmax(trends)])
+        cmax = -cmin
+        plot_title=varname
+        #if varname=='zbar':
+        #    cmin=-0.6
+        #    cmax=-0.1
+        #if varname=='runoff':
+        #    cmin=0
+        #    cmax=5
+        #if varname=='evap':
+        #    cmin=0
+        #    cmax=5
+        plot_title=varname+" "+assign_units(varname)
+        fname=varname+'_trend'
+        #plot_title='zbar [m]'
+        figure_single_default(data=trends,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                              llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title=plot_title)
+
+def plot_skillmetrics_comparison_wtd_DA(wtd_obs, wtd_mod, precip_obs, exp, outpath):
+
+    # Initiate dataframe to store metrics in.
+    INDEX = wtd_obs.columns
+
+    for c,site in enumerate(wtd_obs.columns):
+
+        df_tmp = pd.concat((wtd_obs[site], wtd_mod[0][site],wtd_mod[1][site]),axis=1)
+        df_tmp.columns = ['In-situ','OL','DA']
+
+        # Create x-axis matching in situ data.
+        x_start = df_tmp.index[0]  # Start a-axis with the first day with an observed wtd value.
+        x_end = df_tmp.index[-1]   # End a-axis with the last day with an observed wtd value.
+        Xlim = [x_start, x_end]
+
+        # Calculate z-score for the time series.
+        df_zscore = df_tmp.dropna(axis=0).apply(zscore)
+
+        plt.figure(figsize=(16, 6.5))
+        fontsize = 12
+
+        ax1 = plt.subplot(311)
+        df_tmp.plot(ax=ax1, fontsize=fontsize, style=['.','-','-'], linewidth=2, xlim=Xlim)
+        plt.ylabel('zbar [m]')
+
+        plt.title(site)
+
+        ax1 = plt.subplot(312)
+        df_tmp.plot(ax=ax1, fontsize=fontsize, style=['.','-','-'], linewidth=2, xlim=[df_zscore.index[0],df_zscore.index[-1]])
+        plt.ylabel('zbar [m]')
+
+        ax2 = plt.subplot(313)
+        df_zscore.plot(ax=ax2, fontsize=fontsize, style=['.','-','-'], linewidth=2, xlim=[df_zscore.index[0],df_zscore.index[-1]])
+        plt.ylabel('z-score')
+
+        plt.legend()
+
+        plt.tight_layout()
+        fname = site
+        fname_long = os.path.join(outpath + '/comparison_insitu_data/' + fname + '_DA.png')
+        plt.savefig(fname_long, dpi=150)
+        plt.close()
+
 
 def plot_anomaly_JulyAugust_zbar(exp, domain, root, outpath):
 
@@ -482,13 +619,13 @@ def plot_anomaly_JulyAugust_zbar(exp, domain, root, outpath):
     plt.savefig(fname_long, dpi=f.dpi)
     plt.close()
 
-def plot_RTMparams(exp, domain, root, outpath):
+def plot_RTMparams_old(exp, domain, root, outpath):
 
     outpath = os.path.join(outpath, exp, 'maps', 'rtmparams')
     if not os.path.exists(outpath):
         os.makedirs(outpath,exist_ok=True)
 
-    io = LDAS_io('catparam', exp=exp, domain=domain, root=root)
+    io = LDAS_io('daily', exp=exp, domain=domain, root=root)
     [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
     tc = io.grid.tilecoord
     tg = io.grid.tilegrids
@@ -507,6 +644,220 @@ def plot_RTMparams(exp, domain, root, outpath):
         fname=param
         figure_single_default(data=data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
                               llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title=param)
+
+def plot_RTMparams_filled(exp, domain, root, outpath):
+
+    outpath = os.path.join(outpath, exp, 'maps', 'rtmparams')
+    if not os.path.exists(outpath):
+        os.makedirs(outpath,exist_ok=True)
+
+    io = LDAS_io('daily', exp=exp, domain=domain, root=root)
+    [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
+    tc = io.grid.tilecoord
+    tg = io.grid.tilegrids
+
+    # other parameter definitions
+    cmin = None
+    cmax = None
+
+    params = LDAS_io(exp=exp, domain=domain, root=root).read_params('RTMparam')
+
+    #params[['bh','bv','omega','rgh_hmin','rgh_hmax']].fillna(-9999)
+    params.fillna(-9999,inplace=True)
+    cond = params.groupby(['bh','bv','omega','rgh_hmin','rgh_hmax']).vegcls.transform(len) > 70
+    params = LDAS_io(exp=exp, domain=domain, root=root).read_params('RTMparam')
+    params[cond==False] = np.nan
+    for param in params:
+
+        img = np.full(lons.shape, np.nan)
+        img[tc.j_indg.values, tc.i_indg.values] = params[param].values
+        data = np.ma.masked_invalid(img)
+        fname=param+'_filled'
+        figure_single_default(data=data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                              llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title=param)
+
+def plot_RTMparams_delta(exp1, exp2, domain, root, outpath):
+
+    # plot RTM parameters for LDAS output
+    outpath = os.path.join(outpath, exp1, 'maps', 'rtmparams','compare')
+    if not os.path.exists(outpath):
+        os.makedirs(outpath,exist_ok=True)
+
+    # setup grid for plots
+    io = LDAS_io('daily', exp=exp1, domain=domain, root=root)
+    # set up grid
+    [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
+    tc = io.grid.tilecoord
+    tg = io.grid.tilegrids
+
+    # other parameter definitions
+    cmin = None
+    cmax = None
+
+    # read parameters
+    #params_exp1 = LDAS_io(exp=exp1, domain=domain, root='/staging/leuven/stg_00024/OUTPUT/michelb').read_params('RTMparam')
+    params_exp1 = LDAS_io(exp=exp1, domain=domain, root=root).read_params('RTMparam')
+    params_exp1.fillna(-9999,inplace=True)
+    params_exp2 = LDAS_io(exp=exp2, domain=domain, root=root).read_params('RTMparam')
+    params_exp2.fillna(-9999,inplace=True)
+
+    for param in params_exp1:
+        #if ['bh','bv','omega','rgh_hmin','rgh_hmax'].count(param)==0:
+        #    continue
+        img = np.full(lons.shape, np.nan)
+        img[tc.j_indg.values, tc.i_indg.values] = params_exp2[param].values - params_exp1[param].values
+        data = np.ma.masked_invalid(img)
+        fname=param
+        #param = param+' (CLSM, recal_NORTH + SMOS_v620Tb) - '+param+" (CLSM, L4SM_v001_Lit4_CalD0)"
+        param = param+' '+exp2+' - '+param+' '+exp1
+        figure_single_default(data=data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                              llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp1,fname=fname,plot_title=param)
+
+
+def plot_RTMparams(exp, domain, root, outpath):
+
+    # plot RTM parameters for LDAS output
+    # + make plots of calib and filled grid cells as well as give fraction of calibrated cells.
+    outpath = os.path.join(outpath, exp, 'maps', 'rtmparams')
+    if not os.path.exists(outpath):
+        os.makedirs(outpath,exist_ok=True)
+
+    # setup grid for plots
+    io = LDAS_io('daily', exp=exp, domain=domain, root=root)
+        # set up grid
+    N_days = (io.images.time.values[-1]-io.images.time.values[0]).astype('timedelta64[D]').item().days
+    [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
+    tc = io.grid.tilecoord
+    tg = io.grid.tilegrids
+
+    # other parameter definitions
+    cmin = None
+    cmax = None
+
+    # read parameters
+    params = LDAS_io(exp=exp, domain=domain, root=root).read_params('RTMparam')
+    params.fillna(-9999,inplace=True)
+
+    # if more than four (random choice, could be one also) 36 km grid cells (4 x 16 (M09) grid cells --> 64) (have exactly the same parameters, this set must be 'filled' one.
+    cond_f = params.groupby(['bh','bv','omega','rgh_hmin','rgh_hmax']).vegcls.transform(len) > 16
+    cond_filled = cond_f & (params.bh!=-9999) & (params.poros>0.05)
+    cond_calib = (cond_f == False) & (params.bh!=-9999) & (params.poros>0.05)
+    params = LDAS_io(exp=exp, domain=domain, root=root).read_params('RTMparam')
+    params[(cond_filled==False) & (cond_calib==False)] = np.nan
+    for param in params:
+        if ['bh','bv','omega','rgh_hmin','rgh_hmax'].count(param)==0:
+            continue
+        img = np.full(lons.shape, np.nan)
+        img[tc.j_indg.values, tc.i_indg.values] = params[param].values
+        data = np.ma.masked_invalid(img)
+        fname=param
+        figure_single_default(data=data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                              llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title=param)
+    # histograms
+    f = plt.figure(num=None, figsize=(10,10), dpi=300, facecolor='w', edgecolor='k')
+    i=0
+    for param in params:
+        if ['bh','bv','omega','rgh_hmin','rgh_hmax'].count(param)==0:
+            continue
+        i=i+1
+        plt.subplot(3,2,i)
+        plt.hist(params[param][cond_calib].values)
+        plt.title(param)
+    fname = os.path.join(outpath, 'histogram_RTM_params.png')
+    plt.savefig(fname,dpi=300)
+
+    params.bh[cond_filled] = 0
+    params.bh[cond_calib] = 1
+    img = np.full(lons.shape, np.nan)
+    img[tc.j_indg.values, tc.i_indg.values] = cond_filled
+    cond_filled_2D = img==1
+    img = np.full(lons.shape, np.nan)
+    img[tc.j_indg.values, tc.i_indg.values] = cond_calib
+    cond_calib_2D = img==1
+    img = np.full(lons.shape, np.nan)
+    img[tc.j_indg.values, tc.i_indg.values] = params['bh'].values
+    data = np.ma.masked_invalid(img)
+    fname='00_calib_filled'
+    figure_single_default(data=data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title='filled=0, calib=1',cmap='winter')
+
+    # get filter diagnostics
+    ncpath = io.paths.root +'/' + exp + '/output_postprocessed/'
+    ds = xr.open_dataset(ncpath + 'filter_diagnostics.nc')
+    ############## n_valid_innov
+    n_valid_innov = ds['n_valid_innov'][:, :, :].sum(dim='species',skipna=True)/2.0/N_days
+    cond_valid = n_valid_innov != 0
+    n_valid_innov = n_valid_innov.where(cond_valid)
+    n_valid_innov = obs_M09_to_M36(n_valid_innov)
+    data_valid = np.copy(data)
+    data_valid[cond_valid == False] = np.nan
+    data_valid = obs_M09_to_M36(data_valid)
+    fname='00_calib_filled_valid'
+    figure_single_default(data=data_valid,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title='filled=0, calib=1',cmap='winter')
+
+    print('N(calib) / N(all): %.4f' % (np.size(np.where(cond_calib==True)[0])/(np.size(np.where(cond_calib==True)[0])+np.size(np.where(cond_filled==True)[0]))))
+    print('N(calib, valid) / N(all, valid): %.4f' % (np.size(np.where(cond_calib_2D & cond_valid.values)[0])/(np.size(np.where(cond_calib_2D & cond_valid.values)[0])+np.size(np.where(cond_filled_2D & cond_valid.values)[0]))))
+
+    ### same for peat
+    outpath = os.path.join(outpath, exp, 'maps', 'rtmparams')
+    if not os.path.exists(outpath):
+        os.makedirs(outpath,exist_ok=True)
+
+    io = LDAS_io('daily', exp=exp, domain=domain, root=root)
+    [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
+    tc = io.grid.tilecoord
+    tg = io.grid.tilegrids
+
+    # other parameter definitions
+    cmin = None
+    cmax = None
+
+    params = LDAS_io(exp=exp, domain=domain, root=root).read_params('RTMparam')
+
+    #params[['bh','bv','omega','rgh_hmin','rgh_hmax']].fillna(-9999)
+    params.fillna(-9999,inplace=True)
+    cond_f = params.groupby(['bh','bv','omega','rgh_hmin','rgh_hmax']).vegcls.transform(len) > 16
+    cond_filled_peat = cond_f & (params.bh!=-9999) & (params.poros>0.65)
+    cond_calib_peat = (cond_f==False) & (params.bh!=-9999) & (params.poros>0.65)
+    params = LDAS_io(exp=exp, domain=domain, root=root).read_params('RTMparam')
+    params[(cond_filled_peat==False) & (cond_calib_peat==False)] = np.nan
+    for param in params:
+
+        img = np.full(lons.shape, np.nan)
+        img[tc.j_indg.values, tc.i_indg.values] = params[param].values
+        data = np.ma.masked_invalid(img)
+        fname=param+'_peat'
+        figure_single_default(data=data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                              llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title=param)
+
+    params.bh[cond_filled_peat] = 0
+    params.bh[cond_calib_peat] = 1
+    img = np.full(lons.shape, np.nan)
+    img[tc.j_indg.values, tc.i_indg.values] = params['bh'].values
+    data = np.ma.masked_invalid(img)
+    fname='00_peat_calib_filled'
+    figure_single_default(data=data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title='filled=0, calib=1 (peat distribution)',cmap='winter')
+
+    print('N(calib, peat) / N(peat): %.4f' % (np.size(np.where(cond_calib==True)[0])/(np.size(np.where(cond_calib==True)[0])+np.size(np.where(cond_filled==True)[0]))))
+    print('N(calib, peat, valid) / N(peat, valid): %.4f' % (np.size(np.where(cond_calib_2D & cond_valid.values)[0])/(np.size(np.where(cond_calib_2D & cond_valid.values)[0])+np.size(np.where(cond_filled_2D & cond_valid.values)[0]))))
+
+    # get filter diagnostics
+    ncpath = io.paths.root +'/' + exp + '/output_postprocessed/'
+    ds = xr.open_dataset(ncpath + 'filter_diagnostics.nc')
+    ############## n_valid_innov
+    n_valid_innov = ds['n_valid_innov'][:, :, :].sum(dim='species',skipna=True)/2.0/N_days
+    cond_valid = n_valid_innov != 0
+    n_valid_innov = n_valid_innov.where(n_valid_innov != 0)
+    n_valid_innov = obs_M09_to_M36(n_valid_innov)
+    data_valid = np.copy(data)
+    data_valid[cond_valid == False] = np.nan
+    data_valid = obs_M09_to_M36(data_valid)
+    fname='00_peat_calib_filled_valid'
+    figure_single_default(data=data_valid,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title='filled=0, calib=1 (peat distribution)',cmap='winter')
+
 
 def plot_lag1_autocor(exp, domain, root, outpath):
 
@@ -632,162 +983,12 @@ def plot_filter_diagnostics(exp, domain, root, outpath):
     # get filter diagnostics
     ncpath = io.paths.root +'/' + exp + '/output_postprocessed/'
     ds = xr.open_dataset(ncpath + 'filter_diagnostics.nc')
-    ds_ensstd = xr.open_dataset(ncpath + 'ensstd_mean.nc')
-    ncpath_OL = io.paths.root +'/' + exp[:-3] + '/output_postprocessed/'
-    ds_ensstd_OL = xr.open_dataset(ncpath_OL + 'ensstd_mean.nc')
-    ds_ensstd_OL_CLSM = xr.open_dataset('/staging/leuven/stg_00024/OUTPUT/michelb/SMAP_EASEv2_M09_CLSM_SMOSfw/output_postprocessed/ensstd_mean.nc')
-    ds_ensstd_DA_CLSM = xr.open_dataset('/staging/leuven/stg_00024/OUTPUT/michelb/SMAP_EASEv2_M09_CLSM_SMOSfw_DA/output_postprocessed/ensstd_mean.nc')
 
     n_valid_incr = ds['n_valid_incr'][:,:].values
     np.place(n_valid_incr,n_valid_incr==0,np.nan)
     catparam = io.read_params('catparam')
     poros = np.full(lons.shape, np.nan)
     poros[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['poros'].values
-
-
-    ### ensstd vs ubRMSD plot
-
-    master_table = pd.read_csv('/vsc-hard-mounts/leuven-data/317/vsc31786/FIG_tmp/00DA/20190228_M09/wtd_stats.txt',sep=',')
-    ensstd_OL = np.zeros([59])
-    ensstd_OL_CLSM = np.zeros([59])
-    ensstd_DA = np.zeros([59])
-    ensstd_DA_CLSM = np.zeros([59])
-
-    for i,site_ID in enumerate(master_table.iloc[:,0]):
-
-        #if not site_ID.startswith('IN') and not site_ID.startswith('BR'):
-        #    # Only use sites in Indonesia and Brunei.
-        #    continue
-
-        #if blacklist.iloc[:, 0].str.contains(site_ID).any() or master_table.iloc[i,4] == 0:
-        #    # If site is on the blacklist (contains bad data), or if "comparison" =  0, then don include that site in the dataframe.
-        #    continue
-
-        # Get lat lon from master table for site.
-        lon = master_table.iloc[i,3]
-        lat = master_table.iloc[i,2]
-
-        # Get porosity for site lon lat.
-        # Get M09 rowcol with data.
-        scol, srow = io.grid.lonlat2colrow(lon, lat, domain=True)
-        crow = np.array([1, -1, 1, -1, 0, 0,  2, -2, 2, -2, 2, -2, 0,  0,  3, -3, 3, -3, 3, -3, 3, -3, 0, 0,  4, -4, 4, -4, 4, -4, 4, -4, 4, -4, 0,0]) 
-        ccol = np.array([0, 0,  1, -1, 1, -1, 0, 0,  1, -1, 2, -2, -2, 2,  1, -1, 2, -2, 3, -3, 0,  0, -3, 3, 1, -1, 2, -2, 3, -3, 4, -4, 0, 0, -4,4]) 
-        row = srow
-        col = scol
-        print("i: "+str(i))
-        continue_yes=0
-        dp=0
-        for p in range(0,70):
-            if p==35:
-                crow = crow*(-1)
-                dp = -35
-            print("p: "+str(p))
-            # Get poros for col row.
-            siteporos = poros[row, col]
-            print(siteporos)
-            if siteporos <= 0.7:
-                row = srow + crow[p+dp]
-                col = scol + ccol[p+dp]
-            else:
-                ensstd_OL[i] = ds_ensstd_OL['zbar'].values[row,col]
-                ensstd_DA[i] = ds_ensstd['zbar'].values[row,col]
-                ensstd_OL_CLSM[i] = ds_ensstd_OL_CLSM['zbar'].values[row,col]
-                ensstd_DA_CLSM[i] = ds_ensstd_DA_CLSM['zbar'].values[row,col]
-                break
-
-    ubRMSD_OL = master_table.iloc[:,14]
-    ubRMSD_DA = master_table.iloc[:,15]
-    ubRMSD_OL_CLSM = master_table.iloc[:,12]
-    ubRMSD_DA_CLSM = master_table.iloc[:,13]
-    # open figure
-    figsize = (5, 5)
-    fontsize = 10
-    f = plt.figure(num=None, figsize=figsize, dpi=150, facecolor='w', edgecolor='k')
-    plt.plot(ubRMSD_OL, ensstd_OL, 'o', markersize=7, markeredgecolor='royalblue', markerfacecolor='whitesmoke', label='OL')
-    plt.plot(ubRMSD_DA, ensstd_DA, 'o', markersize=7, markeredgecolor='lawngreen', markerfacecolor='whitesmoke', label='DA')
-    plt.plot(np.array([0,0.25]),np.array([0,0.25]),'k-')
-    plt.xlabel('ubRMSD (m)')
-    plt.ylabel('<ensstd> (m)')
-    plt.legend()
-    fname_long = os.path.join(outpath, 'ubRMSD_ensstd_PEATCLSM.png')
-    plt.tight_layout()
-    plt.savefig(fname_long, dpi=f.dpi)
-    plt.close()      
-    # open figure
-    figsize = (5, 5)
-    fontsize = 10
-    f = plt.figure(num=None, figsize=figsize, dpi=150, facecolor='w', edgecolor='k')
-    NSE_OL = 1 - np.sum((ensstd_OL-ubRMSD_OL)**2.0)/np.sum((ubRMSD_OL-np.mean(ubRMSD_OL))**2.0)
-    NSE_DA = 1 - np.sum((ensstd_DA-ubRMSD_DA)**2.0)/np.sum((ubRMSD_DA-np.mean(ubRMSD_DA))**2.0)
-    NSE_OL_formatted = '%.4f' % (NSE_OL)
-    NSE_DA_formatted = '%.4f' % (NSE_DA)
-    RMSD_OL = np.nanmean((ensstd_OL-ubRMSD_OL)**2.0)**0.5
-    RMSD_DA = np.nanmean((ensstd_DA-ubRMSD_DA)**2.0)**0.5
-    RMSD_OL_formatted = '%.4f' % (RMSD_OL)
-    RMSD_DA_formatted = '%.4f' % (RMSD_DA)
-    RMSD_OL_CLSM = np.nanmean((ensstd_OL_CLSM-ubRMSD_OL_CLSM)**2.0)**0.5
-    RMSD_DA_CLSM = np.nanmean((ensstd_DA_CLSM-ubRMSD_DA_CLSM)**2.0)**0.5
-    RMSD_OL_CLSM_formatted = '%.4f' % (RMSD_OL_CLSM)
-    RMSD_DA_CLSM_formatted = '%.4f' % (RMSD_DA_CLSM)
-    #NSE_OL = 1 - np.sum((ensstd_OL-ubRMSD_OL)**2.0)/np.sum((ubRMSD_OL-np.mean(ubRMSD_OL))**2.0)
-    #NSE_DA = 1 - np.sum((ensstd_DA-ubRMSD_DA)**2.0)/np.sum((ubRMSD_DA-np.mean(ubRMSD_DA))**2.0)
-    plt.plot(ubRMSD_OL, ensstd_OL, 'o', markersize=7, markeredgecolor='royalblue', markerfacecolor='whitesmoke', label='OL (PEATCLSM); ' + 'RMSD = ' + RMSD_OL_formatted)
-    plt.plot(ubRMSD_DA, ensstd_DA, 'o', markersize=7, markeredgecolor='lawngreen', markerfacecolor='whitesmoke', label='DA (PEATCLSM); ' + 'RMSD = ' + RMSD_DA_formatted)
-    plt.plot(ubRMSD_OL_CLSM, ensstd_OL_CLSM, 'D', markersize=7, markeredgecolor='royalblue', markerfacecolor='whitesmoke', label='OL (CLSM); ' + 'RMSD = ' + RMSD_OL_CLSM_formatted)
-    plt.plot(ubRMSD_DA_CLSM, ensstd_DA_CLSM, 'D', markersize=7, markeredgecolor='lawngreen', markerfacecolor='whitesmoke', label='DA (CLSM); ' + 'RMSD = ' + RMSD_DA_CLSM_formatted)
-    plt.plot(np.array([0,1.1]),np.array([0,1.1]),'k-')
-    plt.xlabel('ubRMSD (m)')
-    plt.ylabel('<ensstd> (m)')
-    plt.legend()
-    fname_long = os.path.join(outpath, 'ubRMSD_ensstd_both.png')
-    plt.tight_layout()
-    plt.savefig(fname_long, dpi=f.dpi)
-    plt.close()        
-
-    ########## ensstd OL DA mean #############
-    data = ds_ensstd_OL['zbar'][:, :].values
-    np.place(data,n_valid_incr<100,np.nan)
-    data_p1 = 1000*data
-    data = ds_ensstd['zbar'][:, :].values
-    np.place(data,n_valid_incr<1,np.nan)
-    data_p2 = 1000*data
-    data = data_p2-data_p1
-    np.place(data,n_valid_incr<1,np.nan)
-    data_p3 = data
-    np.place(data_p3,(n_valid_incr<1) | (np.isnan(n_valid_incr) | (poros<0.7)),np.nan)
-    cmin = ([None,None,-40])
-    cmax = ([None,None,40])
-    fname='04b_delta_OL_DA_ensstd_zbar_mean_triple'
-    #my_title='srfexc: m = %.2f, s = %.2f [mm]' % (np.nanmean(data0),np.nanstd(data0))
-    data_all = list([data_p1,data_p2,data_p3])
-    mstats = list(['m = %.1f, s = %.1f' % (np.nanmean(data_p1),np.nanstd(data_p1)),
-                  'm = %.1f, s = %.1f' % (np.nanmean(data_p2),np.nanstd(data_p2)),
-                  'm = %.1f, s = %.1f' % (np.nanmean(data_p3),np.nanstd(data_p3))])
-    figure_triple_default(data=data_all,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
-                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,
-                          plot_title=([r'$<ensstd(\overline{z}_{WT})>\/(OL\/PEATCLSM)\/[m]$', r'$<ensstd(zbar)>\/(DA\/PEATCLSM)\/[m]$', \
-                                       r'$<\!ensstd(\overline{z}_{WT,DA})\!> - <\!ensstd(\overline{z}_{WT,OL})\!>\enspace(mm)$']),mstats=mstats)
-
-    print(ddd)
-    # hist figure
-    figsize = (7.0, 6)
-    plt.rcParams.update({'font.size': 33})
-    f = plt.figure(num=None, figsize=figsize, dpi=100, facecolor='w', edgecolor='k')
-
-    h1 = seaborn.distplot( data_p1[(poros>0.7) & (np.isnan(data_p1)==False)],hist=False, \
-                          kde_kws={"color": (0.42745098, 0.71372549, 1. ), "lw": 6, "label": "OL"}).set(xlim=(22, 90.))
-    h2 = seaborn.distplot(data_p2[(poros>0.7) & (np.isnan(data_p2)==False)],hist=False, \
-                          kde_kws={"color": (0.14117647, 1., 0.14117647), "lw": 6, "label": "DA"}).set(xlim=(22, 90.))
-    plt.ylim(0., 0.10)
-    plt.yticks((0.0,0.1))
-    plt.xlabel('$ensstd(\overline{z}_{WT})\enspace(mm)$')
-    plt.ylabel('Density')
-    plt.legend(frameon=False)
-    plt.tight_layout()
-    fname = 'hist_ensstd_zWT'
-    fname_long = os.path.join(outpath, fname+'.png')
-    plt.savefig(fname_long, dpi=f.dpi)
-    #plt.savefig(fname_long)
 
     ############## n_valid_innov
     data = ds['n_valid_innov'][:, :, :].sum(dim='species',skipna=True)/2.0/N_days
@@ -799,6 +1000,19 @@ def plot_filter_diagnostics(exp, domain, root, outpath):
     figure_single_default(data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
                           llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,
                           plot_title='N per day: m = %.2f, s = %.2f' % (np.nanmean(data),np.nanstd(data)))
+
+    ############## n_valid_incr
+    data = ds['n_valid_incr']/N_days
+    data = data.where(data != 0)
+    data = obs_M09_to_M36(data)
+    cmin = 0
+    cmax = 1.00
+    fname='n_valid_incr'
+    figure_single_default(data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,
+                          plot_title='N per day: m = %.2f, s = %.2f' % (np.nanmean(data),np.nanstd(data)))
+
+
 
     ############## n_valid_innov_quatro
     data = ds['n_valid_innov'][0,:,:]/N_days
@@ -894,17 +1108,6 @@ def plot_filter_diagnostics(exp, domain, root, outpath):
                           llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,
                           plot_title=(['norm_innov_std_H_Asc [K]', 'norm_innov_std_H_Des [K]', 'norm_innov_std_V_Asc [K]', 'norm_innov_std_V_Des [K]']))
 
-    ############## n_valid_incr
-    data = ds['n_valid_incr']/N_days
-    data = data.where(data != 0)
-    data = obs_M09_to_M36(data)
-    cmin = 0
-    cmax = 1.00
-    fname='n_valid_incr'
-    figure_single_default(data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
-                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,
-                          plot_title='N per day: m = %.2f, s = %.2f' % (np.nanmean(data),np.nanstd(data)))
-
     ########## incr std #############
     data = ds['incr_srfexc_var'].values**0.5
     cmin = 0
@@ -931,6 +1134,206 @@ def plot_filter_diagnostics(exp, domain, root, outpath):
     my_title='std(\u0394catdef): m = %.2f, s = %.2f [mm]' % (np.nanmean(data),np.nanstd(data))
     figure_single_default(data=data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
                           llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title=my_title)
+
+def plot_ensstd_insitu_error(exp, domain, root, outpath):
+    #H-Asc
+    #H-Des
+    #V-Asc
+    #V-Des
+    outpath = os.path.join(outpath, exp, 'maps', 'diagnostics')
+    if not os.path.exists(outpath):
+        os.makedirs(outpath,exist_ok=True)
+    # set up grid
+    io = LDAS_io('ObsFcstAna', exp=exp, domain=domain, root=root)
+    N_days = (io.images.time.values[-1]-io.images.time.values[0]).astype('timedelta64[D]').item().days
+    [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
+    # get filter diagnostics
+    ncpath = io.paths.root +'/' + exp + '/output_postprocessed/'
+    ds = xr.open_dataset(ncpath + 'filter_diagnostics.nc')
+
+    n_valid_incr = ds['n_valid_incr'][:,:].values
+    np.place(n_valid_incr,n_valid_incr==0,np.nan)
+    catparam = io.read_params('catparam')
+    poros = np.full(lons.shape, np.nan)
+    poros[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['poros'].values
+
+    ds_ensstd = xr.open_dataset(ncpath + 'ensstd_mean.nc')
+    if exp.startswith('CO') or exp.startswith('IN'):
+        ncpath_OL = io.paths.root +'/' + exp + '/output_postprocessed/'
+        ds_ensstd_OL = xr.open_dataset(ncpath_OL + 'ensstd_mean.nc')
+        ds_ensstd_OL_CLSM = xr.open_dataset(io.paths.root +'/' + 'CONGO_M09_CLSM_v01_SMOSfw_OL' + '/output_postprocessed/ensstd_mean.nc')
+        ds_ensstd_DA_CLSM = xr.open_dataset(io.paths.root +'/' + 'CONGO_M09_CLSM_v01_SMOSfw_DA' + '/output_postprocessed/ensstd_mean.nc')
+    else:
+        ncpath_OL = io.paths.root +'/' + exp[:-3] + '/output_postprocessed/'
+        ds_ensstd_OL = xr.open_dataset(ncpath_OL + 'ensstd_mean.nc')
+        ds_ensstd_OL_CLSM = xr.open_dataset('/staging/leuven/stg_00024/OUTPUT/michelb/SMAP_EASEv2_M09_CLSM_SMOSfw/output_postprocessed/ensstd_mean.nc')
+        ds_ensstd_DA_CLSM = xr.open_dataset('/staging/leuven/stg_00024/OUTPUT/michelb/SMAP_EASEv2_M09_CLSM_SMOSfw_DA/output_postprocessed/ensstd_mean.nc')
+    ### ensstd vs ubRMSD plot
+    ensstd_vs_ubRMSD_plot=0
+    if ensstd_vs_ubRMSD_plot==1:
+        master_table = pd.read_csv('/vsc-hard-mounts/leuven-data/317/vsc31786/FIG_tmp/00DA/20190228_M09/wtd_stats.txt',sep=',')
+        if exp.startswith('CO'):
+            insitu_path = '/data/leuven/317/vsc31786/peatland_data/tropics/WTD'
+            mastertable_filename = 'WTD_TROPICS_MASTER_TABLE.csv'
+            filenames = find_files(insitu_path, mastertable_filename)
+            if isinstance(find_files(insitu_path, mastertable_filename),str):
+                master_table = pd.read_csv(filenames, sep =';')
+            else:
+                for filename in filenames:
+                    if filename.endswith('csv'):
+                        master_table = pd.read_csv(filename, sep =';')
+                        continue
+                    else:
+                        logging.warning("some files, maybe swp files, exist that start with master table searchstring !")
+        ensstd_OL = np.zeros([59])
+        ensstd_OL_CLSM = np.zeros([59])
+        ensstd_DA = np.zeros([59])
+        ensstd_DA_CLSM = np.zeros([59])
+
+        for i,site_ID in enumerate(master_table.iloc[:,0]):
+
+            #if not site_ID.startswith('IN') and not site_ID.startswith('BR'):
+            #    # Only use sites in Indonesia and Brunei.
+            #    continue
+
+            #if blacklist.iloc[:, 0].str.contains(site_ID).any() or master_table.iloc[i,4] == 0:
+            #    # If site is on the blacklist (contains bad data), or if "comparison" =  0, then don include that site in the dataframe.
+            #    continue
+
+            # Get lat lon from master table for site.
+            lon = master_table.iloc[i,3]
+            lat = master_table.iloc[i,2]
+            if exp.startswith('CO'):
+                lon = master_table['lon'][i]
+                lat = master_table['lat'][i]
+            # Get poros for col row. + Check whether site is in domain, if not 'continue' with next site
+            try:
+                col, row = io.grid.lonlat2colrow(lon, lat, domain=True)
+                siteporos = poros[row, col]
+            except:
+                print(site_ID + " not in domain.")
+                continue
+
+            # Get porosity for site lon lat.
+            # Get M09 rowcol with data.
+            scol, srow = io.grid.lonlat2colrow(lon, lat, domain=True)
+            crow = np.array([1, -1, 1, -1, 0, 0,  2, -2, 2, -2, 2, -2, 0,  0,  3, -3, 3, -3, 3, -3, 3, -3, 0, 0,  4, -4, 4, -4, 4, -4, 4, -4, 4, -4, 0,0])
+            ccol = np.array([0, 0,  1, -1, 1, -1, 0, 0,  1, -1, 2, -2, -2, 2,  1, -1, 2, -2, 3, -3, 0,  0, -3, 3, 1, -1, 2, -2, 3, -3, 4, -4, 0, 0, -4,4])
+            row = srow
+            col = scol
+            print("i: "+str(i))
+            continue_yes=0
+            dp=0
+            for p in range(0,70):
+                if p==35:
+                    crow = crow*(-1)
+                    dp = -35
+                print("p: "+str(p))
+                # Get poros for col row.
+                siteporos = poros[row, col]
+                print(siteporos)
+                if siteporos <= 0.7:
+                    row = srow + crow[p+dp]
+                    col = scol + ccol[p+dp]
+                else:
+                    ensstd_OL[i] = ds_ensstd_OL['zbar'].values[row,col]
+                    ensstd_DA[i] = ds_ensstd['zbar'].values[row,col]
+                    ensstd_OL_CLSM[i] = ds_ensstd_OL_CLSM['zbar'].values[row,col]
+                    ensstd_DA_CLSM[i] = ds_ensstd_DA_CLSM['zbar'].values[row,col]
+                    break
+
+        ubRMSD_OL = master_table.iloc[:,14]
+        ubRMSD_DA = master_table.iloc[:,15]
+        ubRMSD_OL_CLSM = master_table.iloc[:,12]
+        ubRMSD_DA_CLSM = master_table.iloc[:,13]
+        # open figure
+        figsize = (5, 5)
+        fontsize = 10
+        f = plt.figure(num=None, figsize=figsize, dpi=150, facecolor='w', edgecolor='k')
+        plt.plot(ubRMSD_OL, ensstd_OL, 'o', markersize=7, markeredgecolor='royalblue', markerfacecolor='whitesmoke', label='OL')
+        plt.plot(ubRMSD_DA, ensstd_DA, 'o', markersize=7, markeredgecolor='lawngreen', markerfacecolor='whitesmoke', label='DA')
+        plt.plot(np.array([0,0.25]),np.array([0,0.25]),'k-')
+        plt.xlabel('ubRMSD (m)')
+        plt.ylabel('<ensstd> (m)')
+        plt.legend()
+        fname_long = os.path.join(outpath, 'ubRMSD_ensstd_PEATCLSM.png')
+        plt.tight_layout()
+        plt.savefig(fname_long, dpi=f.dpi)
+        plt.close()
+        # open figure
+        figsize = (5, 5)
+        fontsize = 10
+        f = plt.figure(num=None, figsize=figsize, dpi=150, facecolor='w', edgecolor='k')
+        NSE_OL = 1 - np.sum((ensstd_OL-ubRMSD_OL)**2.0)/np.sum((ubRMSD_OL-np.mean(ubRMSD_OL))**2.0)
+        NSE_DA = 1 - np.sum((ensstd_DA-ubRMSD_DA)**2.0)/np.sum((ubRMSD_DA-np.mean(ubRMSD_DA))**2.0)
+        NSE_OL_formatted = '%.4f' % (NSE_OL)
+        NSE_DA_formatted = '%.4f' % (NSE_DA)
+        RMSD_OL = np.nanmean((ensstd_OL-ubRMSD_OL)**2.0)**0.5
+        RMSD_DA = np.nanmean((ensstd_DA-ubRMSD_DA)**2.0)**0.5
+        RMSD_OL_formatted = '%.4f' % (RMSD_OL)
+        RMSD_DA_formatted = '%.4f' % (RMSD_DA)
+        RMSD_OL_CLSM = np.nanmean((ensstd_OL_CLSM-ubRMSD_OL_CLSM)**2.0)**0.5
+        RMSD_DA_CLSM = np.nanmean((ensstd_DA_CLSM-ubRMSD_DA_CLSM)**2.0)**0.5
+        RMSD_OL_CLSM_formatted = '%.4f' % (RMSD_OL_CLSM)
+        RMSD_DA_CLSM_formatted = '%.4f' % (RMSD_DA_CLSM)
+        #NSE_OL = 1 - np.sum((ensstd_OL-ubRMSD_OL)**2.0)/np.sum((ubRMSD_OL-np.mean(ubRMSD_OL))**2.0)
+        #NSE_DA = 1 - np.sum((ensstd_DA-ubRMSD_DA)**2.0)/np.sum((ubRMSD_DA-np.mean(ubRMSD_DA))**2.0)
+        plt.plot(ubRMSD_OL, ensstd_OL, 'o', markersize=7, markeredgecolor='royalblue', markerfacecolor='whitesmoke', label='OL (PEATCLSM); ' + 'RMSD = ' + RMSD_OL_formatted)
+        plt.plot(ubRMSD_DA, ensstd_DA, 'o', markersize=7, markeredgecolor='lawngreen', markerfacecolor='whitesmoke', label='DA (PEATCLSM); ' + 'RMSD = ' + RMSD_DA_formatted)
+        plt.plot(ubRMSD_OL_CLSM, ensstd_OL_CLSM, 'D', markersize=7, markeredgecolor='royalblue', markerfacecolor='whitesmoke', label='OL (CLSM); ' + 'RMSD = ' + RMSD_OL_CLSM_formatted)
+        plt.plot(ubRMSD_DA_CLSM, ensstd_DA_CLSM, 'D', markersize=7, markeredgecolor='lawngreen', markerfacecolor='whitesmoke', label='DA (CLSM); ' + 'RMSD = ' + RMSD_DA_CLSM_formatted)
+        plt.plot(np.array([0,1.1]),np.array([0,1.1]),'k-')
+        plt.xlabel('ubRMSD (m)')
+        plt.ylabel('<ensstd> (m)')
+        plt.legend()
+        fname_long = os.path.join(outpath, 'ubRMSD_ensstd_both.png')
+        plt.tight_layout()
+        plt.savefig(fname_long, dpi=f.dpi)
+        plt.close()
+
+    ########## ensstd OL DA mean #############
+    data = ds_ensstd_OL['zbar'][:, :].values
+    np.place(data,n_valid_incr<100,np.nan)
+    data_p1 = 1000*data
+    data = ds_ensstd['zbar'][:, :].values
+    np.place(data,n_valid_incr<1,np.nan)
+    data_p2 = 1000*data
+    data = data_p2-data_p1
+    np.place(data,n_valid_incr<1,np.nan)
+    data_p3 = data
+    np.place(data_p3,(n_valid_incr<1) | (np.isnan(n_valid_incr) | (poros<0.7)),np.nan)
+    cmin = ([None,None,-40])
+    cmax = ([None,None,40])
+    fname='04b_delta_OL_DA_ensstd_zbar_mean_triple'
+    #my_title='srfexc: m = %.2f, s = %.2f [mm]' % (np.nanmean(data0),np.nanstd(data0))
+    data_all = list([data_p1,data_p2,data_p3])
+    mstats = list(['m = %.1f, s = %.1f' % (np.nanmean(data_p1),np.nanstd(data_p1)),
+                   'm = %.1f, s = %.1f' % (np.nanmean(data_p2),np.nanstd(data_p2)),
+                   'm = %.1f, s = %.1f' % (np.nanmean(data_p3),np.nanstd(data_p3))])
+    figure_triple_default(data=data_all,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,
+                          plot_title=([r'$<ensstd(\overline{z}_{WT})>\/(OL\/PEATCLSM)\/[m]$', r'$<ensstd(zbar)>\/(DA\/PEATCLSM)\/[m]$', \
+                                       r'$<\!ensstd(\overline{z}_{WT,DA})\!> - <\!ensstd(\overline{z}_{WT,OL})\!>\enspace(mm)$']),mstats=mstats)
+
+    # hist figure
+    figsize = (7.0, 6)
+    plt.rcParams.update({'font.size': 33})
+    f = plt.figure(num=None, figsize=figsize, dpi=100, facecolor='w', edgecolor='k')
+
+    h1 = seaborn.distplot( data_p1[(poros>0.7) & (np.isnan(data_p1)==False)],hist=False, \
+                           kde_kws={"color": (0.42745098, 0.71372549, 1. ), "lw": 6, "label": "OL"}).set(xlim=(22, 90.))
+    h2 = seaborn.distplot(data_p2[(poros>0.7) & (np.isnan(data_p2)==False)],hist=False, \
+                          kde_kws={"color": (0.14117647, 1., 0.14117647), "lw": 6, "label": "DA"}).set(xlim=(22, 90.))
+    plt.ylim(0., 0.10)
+    plt.yticks((0.0,0.1))
+    plt.xlabel('$ensstd(\overline{z}_{WT})\enspace(mm)$')
+    plt.ylabel('Density')
+    plt.legend(frameon=False)
+    plt.tight_layout()
+    fname = 'hist_ensstd_zWT'
+    fname_long = os.path.join(outpath, fname+'.png')
+    plt.savefig(fname_long, dpi=f.dpi)
+    #plt.savefig(fname_long)
 
 def plot_filter_diagnostics_gs(exp, domain, root, outpath):
     #H-Asc
@@ -1159,11 +1562,11 @@ def plot_filter_diagnostics_delta(exp1, exp2, domain, root, outpath):
     ncpath = io.paths.root +'/' + exp1 + '/output_postprocessed/'
     #ncpath = '/staging/leuven/stg_00024/OUTPUT/michelb/SMAP_EASEv2_M09_CLSM_SMOSfw_DA_old_scaling/output_postprocessed/'
     ds1 = xr.open_dataset(ncpath + 'filter_diagnostics.nc')
-    ds1e = xr.open_dataset(ncpath + 'ensstd_mean.nc')
+    #ds1e = xr.open_dataset(ncpath + 'ensstd_mean.nc')
     ncpath = io.paths.root +'/' + exp2 + '/output_postprocessed/'
-    #ncpath = '/staging/leuven/stg_00024/OUTPUT/michelb/SMAP_EASEv2_M09_SMOSfw_DA/output_postprocessed/'
+    #ncpath = '/staging/leuven/stg_00024/OUTPUT/michelb/SMAP_EASEv2_M09_CLSM_SMOSfw_DA/output_postprocessed/'
     ds2 = xr.open_dataset(ncpath + 'filter_diagnostics.nc')
-    ds2e = xr.open_dataset(ncpath + 'ensstd_mean.nc')
+    #ds2e = xr.open_dataset(ncpath + 'ensstd_mean.nc')
     
     n_valid_innov = np.nansum(ds1['n_valid_innov'][:,:,:].values,axis=0)/2.0
     np.place(n_valid_innov,n_valid_innov==0,np.nan)
@@ -1194,7 +1597,10 @@ def plot_filter_diagnostics_delta(exp1, exp2, domain, root, outpath):
     data_p3 = np.nanmean(np.dstack((data0,data1,data2,data3)),axis=2)
     np.place(data_p3,(n_valid_innov<1) | (poros<0.7) | (np.isnan(n_valid_innov)),np.nan)
     cmin = ([0,0,-15])
-    cmax = ([270,270,15])
+    if np.mean(lats)>40:
+        cmax = ([270,270,15])
+    else:
+        cmax = ([30,30,15])
     fname='02b_delta_innov_var_avg_triple'
     #my_title='innov_var: m = %.2f, s = %.2f [mm]' % (np.nanmean(data0),np.nanstd(data0))
     data_all = list([data_p1,data_p2,data_p3])
@@ -1205,15 +1611,30 @@ def plot_filter_diagnostics_delta(exp1, exp2, domain, root, outpath):
                           llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp1,fname=fname,
                           plot_title=([r'$var(O-F)\/(CLSM)\/[K^2]$', r'$var(O-F)\/(PEATCLSM)\/[K^2]$', \
                                        r'$var(O-F)_{PEATCLSM} - var(O-F)_{CLSM}\enspace(K^2)$']),mstats=mstats)
+    # cross plot
+    figsize = (7.0, 6)
+    f = plt.figure(num=None, figsize=figsize, dpi=100, facecolor='w', edgecolor='k')
+    plt.plot(data_p1[poros>0.7],data_p2[poros>0.7],'.')
+    plt.xlabel('CLSM')
+    plt.ylabel('PEATCLSM')
+    plt.xlim(0,50)
+    plt.ylim(0,50)
+    fname = 'cross_var_O-F'
+    fname_long = os.path.join(outpath, fname+'.png')
+    plt.savefig(fname_long, dpi=f.dpi)
+    plt.rcParams.update({'font.size': 10})
     # hist figure
     figsize = (7.0, 6)
-    plt.rcParams.update({'font.size': 33})
+    if np.mean(lats)>40:
+        plt.rcParams.update({'font.size': 33})
+    else:
+        plt.rcParams.update({'font.size': 20})
     f = plt.figure(num=None, figsize=figsize, dpi=100, facecolor='w', edgecolor='k')
 
     h1 = seaborn.distplot(data_p1[(poros>0.7) & (np.isnan(data_p1)==False)],hist=False, \
-                          kde_kws={"color": (0.42745098, 0.71372549, 1. ), "lw": 6, "label": "CLSM", 'clip': (0.0, 20.0)}).set(xlim=(0, 22.))
+                          kde_kws={"color": (0.42745098, 0.71372549, 1. ), "lw": 6, "label": "CLSM", 'clip': (0.0, 200.0)}).set(xlim=(0, 22.))
     h2 = seaborn.distplot(data_p2[(poros>0.7) & (np.isnan(data_p2)==False)],hist=False, \
-                          kde_kws={"color": (0.14117647, 1., 0.14117647), "lw": 6, "label": "PEATCLSM", 'clip': (0.0, 20.0)}).set(xlim=(0, 22.))
+                          kde_kws={"color": (0.14117647, 1., 0.14117647), "lw": 6, "label": "PEATCLSM", 'clip': (0.0, 200.0)}).set(xlim=(0, 22.))
     plt.ylim(0., 0.28)
     plt.xlabel('$var(O-F)\enspace(K^2)$')
     plt.ylabel('Density')
@@ -1261,7 +1682,10 @@ def plot_filter_diagnostics_delta(exp1, exp2, domain, root, outpath):
 
     # hist figure
     figsize = (7.0, 6)
-    plt.rcParams.update({'font.size': 33})
+    if np.mean(lats)>40:
+        plt.rcParams.update({'font.size': 33})
+    else:
+        plt.rcParams.update({'font.size': 20})
     f = plt.figure(num=None, figsize=figsize, dpi=100, facecolor='w', edgecolor='k')
 
     h1 = seaborn.distplot(data_p1[(poros>0.7) & (np.isnan(data_p1)==False)],hist=False, \
@@ -1279,7 +1703,6 @@ def plot_filter_diagnostics_delta(exp1, exp2, domain, root, outpath):
     plt.rcParams.update({'font.size': 10})
     #plt.savefig(fname_long)
 
-    print(ddd)
     ########## n valid innov #############
     data = np.nanmean(np.dstack((ds1['innov_var'][0,:, :].values, ds1['innov_var'][1,:, :].values, ds1['innov_var'][2,:, :].values, ds1['innov_var'][3,:, :].values)),axis=2)
     data = data**0.5
@@ -1388,7 +1811,6 @@ def plot_filter_diagnostics_delta(exp1, exp2, domain, root, outpath):
     print(mean_peat)
     print(mean_peat_SI)
     print(mean_peat_HU)
-    print(ddd)
     cmin = ([0,0,None])
     cmax = ([270,270,None])
     fname='02_delta_innov_var_avg_triple'
@@ -2341,7 +2763,7 @@ def figure_triple_default(data,lons,lats,cmin,cmax,llcrnrlat, urcrnrlat,
     if np.mean(lats)>40:
         figsize = (0.85*13, 0.85*10)
     else:
-        figsize = (0.85*5, 0.85*10)
+        figsize = (0.85*7, 0.85*16)
     fontsize = 13
     f = plt.figure(num=None, figsize=figsize, dpi=300, facecolor='w', edgecolor='k')
     for i in np.arange(0,3):
@@ -2389,8 +2811,11 @@ def figure_triple_default(data,lons,lats,cmin,cmax,llcrnrlat, urcrnrlat,
             im.set_clim(vmin=cbrange[0], vmax=cbrange[1])
             #cb = m.colorbar(im, "bottom", size="7%", pad="22%", shrink=0.5)
             #cb = matplotlib.pyplot.colorbar(im)
-            im_ratio = np.shape(data)[1]/np.shape(data)[2]
-            cb = matplotlib.pyplot.colorbar(im,fraction=0.13*im_ratio, pad=0.02)
+            if np.mean(lats)>40:
+                im_ratio = np.shape(data)[1]/np.shape(data)[2]
+                cb = matplotlib.pyplot.colorbar(im,fraction=0.13*im_ratio, pad=0.02)
+            else:
+                cb = matplotlib.pyplot.colorbar(im)
             #ticklabs = cb.ax.get_yticklabels()
             #cb.ax.set_yticklabels(ticklabs,ha='right')
             #cb.ax.yaxis.set_tick_params(pad=45)  # your number may vary
@@ -2400,12 +2825,15 @@ def figure_triple_default(data,lons,lats,cmin,cmax,llcrnrlat, urcrnrlat,
         for t in cb.ax.get_yticklabels():
             t.set_fontsize(fontsize)
             t.set_horizontalalignment('right')
-            t.set_x(9.0)
+            if np.mean(lats)>40:
+                t.set_x(9.0)
+            else:
+                t.set_x(4.0)
         tit = plt.title(plot_title[i], fontsize=fontsize)
         if np.mean(lats)>40:
             matplotlib.pyplot.text(1.0, 1.0, mstats[i], horizontalalignment='right', verticalalignment='bottom', transform=ax.transAxes, fontsize=fontsize)
         else:
-            matplotlib.pyplot.text(1.0, 0.0, mstats[i], bbox=dict(facecolor='white', alpha=1.0), horizontalalignment='right', verticalalignment='bottom', transform=ax.transAxes, fontsize=fontsize)
+            matplotlib.pyplot.text(1.0, 0.2, mstats[i], bbox=dict(facecolor='white', alpha=1.0), horizontalalignment='right', verticalalignment='bottom', transform=ax.transAxes, fontsize=fontsize)
     fname_long = os.path.join(outpath, fname+'.png')
     plt.tight_layout()
     plt.savefig(fname_long, dpi=f.dpi)
@@ -2509,18 +2937,17 @@ def figure_double_scaling(data,lons,lats,cmin,cmax,llcrnrlat, urcrnrlat,
     plt.close()
 
 def figure_single_default(data,lons,lats,cmin,cmax,llcrnrlat, urcrnrlat,
-                              llcrnrlon,urcrnrlon,outpath,exp,fname,plot_title):
-    cmap = 'jet'
-    if plot_title.startswith('zbar'):
-        cmap = 'jet_r'
+                              llcrnrlon,urcrnrlon,outpath,exp,fname,plot_title,cmap='seismic'):
+    #if plot_title.startswith('zbar'):
+    #    cmap = 'jet_r'
     if cmin == None:
         cmin = np.nanmin(data)
     if cmax == None:
         cmax = np.nanmax(data)
-    #if cmin < 0.0:
-    #    cmax = np.max([-cmin,cmax])
-    #    cmin = -cmax
-    #    cmap = 'seismic'
+    if cmin < 0.0:
+        cmax = np.max([-cmin,cmax])
+        cmin = -cmax
+        cmap = 'seismic'
     # open figure
     # Norther peatland:
     if np.mean(lats)>30:
@@ -3192,8 +3619,8 @@ def plot_scaling_parameters_average(exp, domain, root, outpath):
     data1 = obs_M09_to_M36(data1)
     data2 = obs_M09_to_M36(data2)
     data3 = obs_M09_to_M36(data3)
-    cmin = None
-    cmax = None
+    cmin = 240
+    cmax = 285
     fname='mean_obs'
     data_all = list([data0,data1,data2,data3])
     figure_quatro_scaling(data_all,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
@@ -3213,8 +3640,8 @@ def plot_scaling_parameters_average(exp, domain, root, outpath):
     data1 = obs_M09_to_M36(data1)
     data2 = obs_M09_to_M36(data2)
     data3 = obs_M09_to_M36(data3)
-    cmin = None
-    cmax = None
+    cmin = 240
+    cmax = 285
     fname='mean_mod'
     data_all = list([data0,data1,data2,data3])
     figure_quatro_scaling(data_all,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
