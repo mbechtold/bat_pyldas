@@ -9,7 +9,7 @@ from bat_pyldas.plotting import *
 from bat_pyldas.functions import *
 import getpass
 
-root='/scratch/leuven/317/vsc31786/output/TROPICS'
+root='/staging/leuven/stg_00024/OUTPUT/michelb/TROPICS'
 outpath = '/staging/leuven/stg_00024/OUTPUT/michelb/FIG_tmp/TROPICS/sm_sensitivity_test'
 exp='INDONESIA_M09_PEATCLSMTD_v01_SMOSfw'
 domain='SMAP_EASEv2_M09'
