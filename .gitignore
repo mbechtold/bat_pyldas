@@ -1,3 +1,5 @@
 SA_process_multiple_exp.pbs
 .idea
 *.out
+__pycache__
+*.pyc
