@@ -25,9 +25,9 @@ plot_insitu_multiple_exp = 0
 # maps
 if plot_maps==1:
     root='/staging/leuven/stg_00024/OUTPUT/sebastiana'
-    exp = 'INDONESIA_M09_PEATCLSMTD_v01'
+    exp = 'SAMERICA_M09_PEATCLSMTN_v01'
     domain = 'SMAP_EASEv2_M09'
-    outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/IN/Drained'
+    outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/SA/Natural'
     # Catchment Parameters
     plot_catparams(exp, domain, root, outpath)
     # Temporal mean and standard deviation of variables
@@ -37,16 +37,15 @@ if plot_maps==1:
 if plot_insitu==1:
     ## in situ data
     root='/staging/leuven/stg_00024/OUTPUT/sebastiana'
-    exp = 'CONGO_M09_PEATCLSMTN_v01'
-    exp = 'INDONESIA_M09_PEATCLSM_v01'
+    exp = 'INDONESIA_M09_PEATCLSMTN_v01'
     domain = 'SMAP_EASEv2_M09'
-    outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/IN/Northern/Drained_sites'
+    outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/IN/Natural'
     os.makedirs(outpath,exist_ok=True)
-    insitu_path = '/data/leuven/317/vsc31786/peatland_data/tropics/WTD'
-    mastertable_filename = 'WTD_TROPICS_MASTER_TABLE.csv'
+    insitu_path = '/data/leuven/317/vsc31786/peatland_data/tropics'
+    mastertable_filename = 'WTD_TROPICS_MASTER_TABLE_ALLDorN.csv'
     ####
-    wtd_obs, wtd_mod, precip_obs = read_wtd_data(insitu_path, mastertable_filename, exp, domain, root)
-    plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, exp, outpath)
+    wtd_obs, wtd_mod, precip_obs, precip_mod = read_wtd_data(insitu_path, mastertable_filename, exp, domain, root)
+    plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, exp, outpath)
 
 # insitu
 if plot_insitu_multiple_exp==1:
@@ -61,18 +60,18 @@ if plot_insitu_multiple_exp==1:
     exp3a = 'INDONESIA_M09_PEATCLSMTN_v01'
     exp3b = 'INDONESIA_M09_PEATCLSMTD_v01'
     domain = 'SMAP_EASEv2_M09'
-    outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/IN/Northern'
+    outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/IN/Drained'
     os.makedirs(outpath,exist_ok=True)
     insitu_path = '/data/leuven/317/vsc31786/peatland_data'
     insitu_path = '/data/leuven/317/vsc31786/peatland_data/tropics/WTD'
     mastertable_filename = 'WTD_TROPICS_MASTER_TABLE.csv'
     ####
-    wtd_obs, wtd_mod_exp1, precip_obs = read_wtd_data(insitu_path, mastertable_filename, exp1, domain, root)
-    wtd_obs, wtd_mod_exp2, precip_obs = read_wtd_data(insitu_path, mastertable_filename, exp2, domain, root)
-    wtd_obs, wtd_mod_exp3a, precip_obs = read_wtd_data(insitu_path, mastertable_filename, exp3a, domain, root)
-    wtd_obs, wtd_mod_exp3b, precip_obs = read_wtd_data(insitu_path, mastertable_filename, exp3b, domain, root)
+    wtd_obs, wtd_mod_exp1, precip_obs, precip_mod_exp1 = read_wtd_data(insitu_path, mastertable_filename, exp1, domain, root)
+    wtd_obs, wtd_mod_exp2, precip_obs,  precip_mod_exp2 = read_wtd_data(insitu_path, mastertable_filename, exp2, domain, root)
+    wtd_obs, wtd_mod_exp3a, precip_obs, precip_mod_exp3a = read_wtd_data(insitu_path, mastertable_filename, exp3a, domain, root)
+    wtd_obs, wtd_mod_exp3b, precip_obs, precip_mod_exp3b = read_wtd_data(insitu_path, mastertable_filename, exp3b, domain, root)
     #plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod_exp3a, precip_obs, exp3a, outpath)
-    wtd_mod = [wtd_mod_exp2, wtd_mod_exp3a, wtd_mod_exp3b]
+    wtd_mod = [wtd_mod_exp1, wtd_mod_exp2, wtd_mod_exp3a, wtd_mod_exp3b]
     plot_skillmetrics_comparison_wtd_multimodel(wtd_obs, wtd_mod, precip_obs, exp3a, outpath)
 
 # to be checked:
