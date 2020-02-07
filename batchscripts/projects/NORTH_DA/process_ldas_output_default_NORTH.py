@@ -15,7 +15,8 @@ if len(sys.argv)<=1:
     exp='CONGO_M09_PEATCLSMTN_v01'
     domain='SMAP_EASEv2_M09'
     root='/staging/leuven/stg_00024/OUTPUT/michelb'
-    exp='SMAP_EASEv2_M09_CLSM_SMOSfw_DA'
+    root='/scratch/leuven/317/vsc31786/output'
+    exp='SMAP_EASEv2_M09_CLSM_SMOSfw_L4_SM_v4_RTMparam'
     exp1='SMAP_EASEv2_M09_CLSM_SMOSfw_DA'
     exp2='SMAP_EASEv2_M09_SMOSfw_DA'
     domain='SMAP_EASEv2_M09'  
@@ -34,9 +35,9 @@ lonmin=-180.
 lonmax=180.
 
 # processing
-proc_ObsFcstAna = 0
+proc_daily = 1
+proc_ObsFcstAna = 1
 proc_incr = 0
-proc_daily = 0
 proc_ensstd = 0
 proc_total_water = 0
 proc_daily_stats = 1
