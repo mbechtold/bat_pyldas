@@ -373,7 +373,7 @@ def ncfile_init_multiruns(fname, lats, lons, runs, species, tags):
 
     return ds
 
-def bin2nc_scaling(exp, domain, root, outputpath):
+def bin2nc_scaling(exp, domain, root, outputpath, scalepath='', scalename=''):
 
     angle = 40
     if not os.path.exists(outputpath):
@@ -387,8 +387,10 @@ def bin2nc_scaling(exp, domain, root, outputpath):
     tg = io.grid.tilegrids
     pentad = np.arange(1,74)
     AD = np.arange(0,2)
-    scalepath = io.read_nml('ensupd')['ens_upd_inputs']['obs_param_nml'][20]['scalepath'].split()[0]
-    scalename = io.read_nml('ensupd')['ens_upd_inputs']['obs_param_nml'][20]['scalename'][5:].split()[0]
+    if scalepath=='':
+        scalepath = io.read_nml('ensupd')['ens_upd_inputs']['obs_param_nml'][20]['scalepath'].split()[0]
+        scalename = io.read_nml('ensupd')['ens_upd_inputs']['obs_param_nml'][20]['scalename'][5:].split()[0]
+
     print('scalepath')
     print(scalepath)
     print(scalename)
@@ -979,25 +981,28 @@ def filter_diagnostics_evaluation_incr(exp, domain, root, outputpath):
     ds.close()
 
 
-def daily_stats(exp, domain, root, outputpath, stat):
+def daily_stats(exp, domain, root, outputpath, stat, param='daily'):
 
     if not os.path.exists(outputpath):
         os.makedirs(outputpath,exist_ok=True)
     result_file = outputpath + 'daily_'+stat+'.nc'
     os.remove(result_file) if os.path.exists(result_file) else None
 
-    io = LDAS_io('daily',exp, domain, root)
+    io = LDAS_io(param,exp, domain, root)
     cvars = io.timeseries.data_vars
 
     [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
-    catparam = io.read_params('catparam')
-    poros = np.full(lons.shape, np.nan)
-    poros[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['poros'].values
-    poros[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['poros'].values
-    bf1 = np.full(lons.shape, np.nan)
-    bf1[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['bf1'].values
-    bf2 = np.full(lons.shape, np.nan)
-    bf2[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['bf2'].values
+    try:
+        catparam = io.read_params('catparam')
+        poros = np.full(lons.shape, np.nan)
+        poros[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['poros'].values
+        poros[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['poros'].values
+        bf1 = np.full(lons.shape, np.nan)
+        bf1[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['bf1'].values
+        bf2 = np.full(lons.shape, np.nan)
+        bf2[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['bf2'].values
+    except:
+        print('catparam not yet read for nc files smaller than model run')
     tc = io.grid.tilecoord
     tg = io.grid.tilegrids
     #lons = io.grid.ease_lons[tc['i_indg'].min():(tc['i_indg'].max()+1)]
@@ -1016,7 +1021,7 @@ def daily_stats(exp, domain, root, outputpath, stat):
             ds[cvar][:,:] = io.timeseries[cvar][:,:,:].std(dim='time',skipna=True).values
 
     x,y = get_cdf_integral_xy()
-    if exp.find("_CLSM")<0:
+    if exp.find("_CLSM")<0 & exp.find("GLOB_M36_7Thv_TWS_FOV0_M2")<0:
         for row in range(io.timeseries['catdef'].shape[1]):
             for col in range(io.timeseries['catdef'].shape[2]):
                 if poros[row,col]>0.6:

@@ -44,19 +44,26 @@ def assign_units(var):
         unit =['not_known']
     return(unit)
 
-def plot_all_variables_temporal_moments(exp, domain, root, outpath):
+def plot_all_variables_temporal_moments(exp, domain, root, outpath,param='daily'):
 
     # plot temporal mean and standard deviation of variables
     outpath = os.path.join(outpath, exp, 'maps', 'stats')
     if not os.path.exists(outpath):
         os.makedirs(outpath,exist_ok=True)
 
-    io = LDAS_io('daily', exp=exp, domain=domain, root=root)
+    io = LDAS_io(param, exp=exp, domain=domain, root=root)
     [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
 
-
+    try:
+        m1 = xr.open_dataset(os.path.join(root,exp,'output_postprocessed/',param+'_mean.nc'))
+    except:
+        m1 = io.timeseries.mean(axis=0)
+    try:
+        m2 = xr.open_dataset(os.path.join(root,exp,'output_postprocessed/',param+'_std.nc'))
+    except:
+        m2 = io.timeseries.std(axis=0)
     # mean
-    m1 = io.timeseries.mean(axis=0)
+    #m1 = io.timeseries.mean(axis=0)
     for varname, da in m1.data_vars.items():
         tmp_data = da
         #cmin = 0
@@ -78,7 +85,7 @@ def plot_all_variables_temporal_moments(exp, domain, root, outpath):
         #plot_title='zbar [m]'
         figure_single_default(data=tmp_data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
                               llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title=plot_title)
-    m2 = io.timeseries.std(axis=0)
+    #m2 = io.timeseries.std(axis=0)
     for varname, da in m2.data_vars.items():
         tmp_data = da
         #cmin = 0
@@ -2884,6 +2891,8 @@ def figure_quatro_scaling(data,lons,lats,cmin,cmax,llcrnrlat, urcrnrlat,
             cmax = np.max([-cmin,cmax])
             cmin = -cmax
             cmap = 'seismic'
+        if i==2:
+            cmax = cmax * 0.5
 
         cbrange = (cmin, cmax)
         plt.subplot(4,1,i+1)
@@ -2897,6 +2906,8 @@ def figure_quatro_scaling(data,lons,lats,cmin,cmax,llcrnrlat, urcrnrlat,
         m.drawmeridians(meridians,labels=[True,False,False,True])
         lat=53.
         lon=38.5
+        lon=-103
+        lat=47
         x,y = m(lon, lat)
         m.plot(x, y, 'ko', markersize=6,mfc='none')
         # color bar
@@ -3135,6 +3146,7 @@ def plot_normalized_innovation_variance():
 
 
 def plot_ismn_statistics():
+    outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/IN/Drained'
 
     fname = r"D:\work\LDAS\2018-02_scaling\ismn_eval\no_da_cal_uncal_ma_harm\validation_masked.csv"
 
@@ -3569,23 +3581,123 @@ def plot_model_parameters():
     plt.tight_layout()
     plt.show()
 
-def plot_scaling_parameters(exp, domain, root, outpath):
-
+def plot_scaling_parameters_timeseries(exp, domain, root, outpath, scalepath='', scalename='', lon='', lat=''):
     angle = 40
     outpath = os.path.join(outpath, exp, 'scaling')
     if not os.path.exists(outpath):
         os.makedirs(outpath,exist_ok=True)
-    io = LDAS_io('scale',exp,domain,root)
+    io = LDAS_io('ObsFcstAna',exp,domain,root)
+    [col, row] = get_M09_ObsFcstAna(io,lon,lat)
     [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
     tc = io.grid.tilecoord
     tg = io.grid.tilegrids
 
     #fpath = os.path.join(root,exp,'output',domain,'stats/z_score_clim/pentad/')
-    scalepath = io.read_nml('ensupd')['ens_upd_inputs']['obs_param_nml'][20]['scalepath'].split()[0]
-    #fname = 'ScMO_Thvf_TbSM_001_SMOS_zscore_stats_2010_p1_2018_p73_hscale_0.00_W_9p_Nmin_20'
-    scalename = io.read_nml('ensupd')['ens_upd_inputs']['obs_param_nml'][20]['scalename'][5:].split()[0]
+    if scalepath=='':
+        scalepath = io.read_nml('ensupd')['ens_upd_inputs']['obs_param_nml'][20]['scalepath'].split()[0]
+        #fname = 'ScMO_Thvf_TbSM_001_SMOS_zscore_stats_2010_p1_2018_p73_hscale_0.00_W_9p_Nmin_20'
+        scalename = io.read_nml('ensupd')['ens_upd_inputs']['obs_param_nml'][20]['scalename'][5:].split()[0]
+    mod_ha=[]
+    mod_va=[]
+    mod_hd=[]
+    mod_vd=[]
+    obs_ha=[]
+    obs_va=[]
+    obs_hd=[]
+    obs_vd=[]
     for i_AscDes,AscDes in enumerate(list(["A","D"])):
         for i_pentad in np.arange(1,74):
+            fname = scalepath+scalename+'_'+AscDes+'_p'+"%02d" % (i_pentad,)+'.bin'
+            res = io.read_scaling_parameters(fname=fname)
+
+            res = res[['lon','lat','m_mod_H_%2i'%angle,'m_mod_V_%2i'%angle,'m_obs_H_%2i'%angle,'m_obs_V_%2i'%angle]]
+            res.replace(-9999.,np.nan,inplace=True)
+
+            img = np.full(lons.shape, np.nan)
+            img[tc.j_indg.values, tc.i_indg.values] = res['m_mod_H_%2i'%angle].values
+            img = obs_M09_to_M36(img)
+            data0 = np.ma.masked_invalid(img)
+            img = np.full(lons.shape, np.nan)
+            img[tc.j_indg.values, tc.i_indg.values] = res['m_mod_V_%2i'%angle].values
+            img = obs_M09_to_M36(img)
+            data1 = np.ma.masked_invalid(img)
+            img = np.full(lons.shape, np.nan)
+            img[tc.j_indg.values, tc.i_indg.values] = res['m_obs_H_%2i'%angle].values
+            img = obs_M09_to_M36(img)
+            data2 = np.ma.masked_invalid(img)
+            img = np.full(lons.shape, np.nan)
+            img[tc.j_indg.values, tc.i_indg.values] = res['m_obs_V_%2i'%angle].values
+            img = obs_M09_to_M36(img)
+            data3 = np.ma.masked_invalid(img)
+
+            if AscDes=='A':
+                mod_ha.append(data0.data[row,col])
+                mod_va.append(data1.data[row,col])
+                obs_ha.append(data2.data[row,col])
+                obs_va.append(data3.data[row,col])
+            else:
+                mod_hd.append(data0.data[row,col])
+                mod_vd.append(data1.data[row,col])
+                obs_hd.append(data2.data[row,col])
+                obs_vd.append(data3.data[row,col])
+
+    plt.figure(figsize=(6.5, 13))
+    fontsize = 12
+    ax1 = plt.subplot(411)
+    plt.plot(np.arange(1,74),mod_ha,color='red')
+    plt.plot(np.arange(1,74),obs_ha,color='black')
+    plt.legend(['mod','obs'])
+    plt.xlabel('pentad')
+    plt.ylabel('H-Asc')
+    plt.xlim(1,73)
+    plt.ylim(210,300)
+    ax2 = plt.subplot(412)
+    plt.plot(np.arange(1,74),mod_va,color='red')
+    plt.plot(np.arange(1,74),obs_va,color='black')
+    plt.legend(['mod','obs'])
+    plt.xlabel('pentad')
+    plt.ylabel('V-Asc')
+    plt.xlim(1,73)
+    plt.ylim(210,300)
+    ax3 = plt.subplot(413)
+    plt.plot(np.arange(1,74),mod_hd,color='red')
+    plt.plot(np.arange(1,74),obs_hd,color='black')
+    plt.legend(['mod','obs'])
+    plt.xlabel('pentad')
+    plt.ylabel('H-Des')
+    plt.xlim(1,73)
+    plt.ylim(210,300)
+    ax4 = plt.subplot(414)
+    plt.plot(np.arange(1,74),mod_vd,color='red')
+    plt.plot(np.arange(1,74),obs_vd,color='black')
+    plt.legend(['mod','obs'])
+    plt.xlabel('pentad')
+    plt.ylabel('V-Des')
+    plt.xlim(1,73)
+    plt.ylim(210,300)
+
+    fname_long = os.path.join(outpath,'lon_%02d_' % (lon,) + 'lat_%02d_' % (lat,) + '.png')
+    plt.savefig(fname_long, dpi=150)
+    plt.close()
+
+def plot_scaling_parameters(exp, domain, root, outpath, scalepath='', scalename=''):
+
+    angle = 40
+    outpath = os.path.join(outpath, exp, 'scaling')
+    if not os.path.exists(outpath):
+        os.makedirs(outpath,exist_ok=True)
+    io = LDAS_io('ObsFcstAna',exp,domain,root)
+    [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
+    tc = io.grid.tilecoord
+    tg = io.grid.tilegrids
+
+    #fpath = os.path.join(root,exp,'output',domain,'stats/z_score_clim/pentad/')
+    if scalepath=='':
+        scalepath = io.read_nml('ensupd')['ens_upd_inputs']['obs_param_nml'][20]['scalepath'].split()[0]
+        #fname = 'ScMO_Thvf_TbSM_001_SMOS_zscore_stats_2010_p1_2018_p73_hscale_0.00_W_9p_Nmin_20'
+        scalename = io.read_nml('ensupd')['ens_upd_inputs']['obs_param_nml'][20]['scalename'][5:].split()[0]
+    for i_AscDes,AscDes in enumerate(list(["A","D"])):
+        for i_pentad in np.arange(37,39):
             fname = scalepath+scalename+'_'+AscDes+'_p'+"%02d" % (i_pentad,)+'.bin'
             res = io.read_scaling_parameters(fname=fname)
 
@@ -3633,6 +3745,49 @@ def plot_scaling_parameters_average(exp, domain, root, outpath):
     ncpath = io.paths.root +'/' + exp + '/output_postprocessed/'
     ds = xr.open_dataset(ncpath + 'scaling.nc')
     AscDes = ['A','D']
+
+    #### std_mod
+    data0 = ds['m_obs_H_%2i'%angle][:,:,:,0].std(axis=2)
+    data1 = ds['m_obs_H_%2i'%angle][:,:,:,1].std(axis=2)
+    data2 = ds['m_obs_V_%2i'%angle][:,:,:,0].std(axis=2)
+    data3 = ds['m_obs_V_%2i'%angle][:,:,:,1].std(axis=2)
+    data0 = data0.where(data0!=0)
+    data1 = data1.where(data1!=0)
+    data2 = data2.where(data2!=0)
+    data3 = data3.where(data3!=0)
+    data0 = obs_M09_to_M36(data0)
+    data1 = obs_M09_to_M36(data1)
+    data2 = obs_M09_to_M36(data2)
+    data3 = obs_M09_to_M36(data3)
+    cmin = 0
+    cmax = 20
+    fname='std_obs'
+    data_all = list([data0,data1,data2,data3])
+    figure_quatro_scaling(data_all,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,
+                          plot_title=list(['H-Asc', 'H-Des','V-Asc', 'V-Des']))
+
+    #### std_mod
+    data0 = ds['m_mod_H_%2i'%angle][:,:,:,0].std(axis=2)
+    data1 = ds['m_mod_H_%2i'%angle][:,:,:,1].std(axis=2)
+    data2 = ds['m_mod_V_%2i'%angle][:,:,:,0].std(axis=2)
+    data3 = ds['m_mod_V_%2i'%angle][:,:,:,1].std(axis=2)
+    data0 = data0.where(data0!=0)
+    data1 = data1.where(data1!=0)
+    data2 = data2.where(data2!=0)
+    data3 = data3.where(data3!=0)
+    data0 = obs_M09_to_M36(data0)
+    data1 = obs_M09_to_M36(data1)
+    data2 = obs_M09_to_M36(data2)
+    data3 = obs_M09_to_M36(data3)
+    cmin = 0
+    cmax = 20
+    fname='std_mod'
+    data_all = list([data0,data1,data2,data3])
+    figure_quatro_scaling(data_all,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                          llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,
+                          plot_title=list(['H-Asc', 'H-Des','V-Asc', 'V-Des']))
+
 
     #### mean_obs
     data0 = ds['m_obs_H_%2i'%angle][:,:,:,0].mean(axis=2)
@@ -3775,6 +3930,226 @@ def plot_scaling_parameters_average(exp, domain, root, outpath):
     figure_quatro_scaling(data_all,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
                           llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,
                           plot_title=list(['N pentads (H-Asc)', 'N pentads (H-Des)','N pentads (V-Asc)', 'N pentads (V-Des)']))
+
+def plot_timeseries_RSEpaper(exp1, exp2, domain, root, outpath, lat=53, lon=25):
+    #root2='/staging/leuven/stg_00024/OUTPUT/michelb'
+    root2=root
+    daily_PCLSM_OL = LDAS_io('daily', exp=exp2[0:-3], domain=domain, root=root2)
+    #daily_CLSM_OL = LDAS_io('daily', exp=exp1[0:-3], domain=domain, root=root2)
+    daily_CLSM_DA = LDAS_io('daily', exp=exp1, domain=domain, root=root)
+    daily_PCLSM_DA = LDAS_io('daily', exp=exp2, domain=domain, root=root)
+    #temp
+    daily_CLSM_OL = daily_CLSM_DA
+
+    ObsFcstAna_PCLSM_OL = LDAS_io('ObsFcstAna', exp=exp2[0:-3], domain=domain, root=root2)
+    #ObsFcstAna_CLSM_OL = LDAS_io('ObsFcstAna', exp=exp1[0:-3], domain=domain, root=root2)
+    ObsFcstAna_CLSM_DA = LDAS_io('ObsFcstAna', exp=exp1, domain=domain, root=root)
+    ObsFcstAna_PCLSM_DA = LDAS_io('ObsFcstAna', exp=exp2, domain=domain, root=root)
+    #temp
+    ObsFcstAna_CLSM_OL = ObsFcstAna_CLSM_DA
+
+    #io_incr = LDAS_io('incr', exp=exp, domain=domain, root=root)
+    #io_incr_CLSM = LDAS_io('incr', exp=exp2, domain=domain, root=root)
+    #io_ens = LDAS_io('ensstd', exp=exp, domain=domain, root=root)
+    #io_ens_CLSM = LDAS_io('ensstd', exp=exp2, domain=domain, root=root)
+    
+    [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(daily_PCLSM_OL)
+    #lon = -110.
+    #lat=52.
+    [col, row] = get_M09_ObsFcstAna(ObsFcstAna_PCLSM_OL,lon,lat)
+    ObsFcstAna_PCLSM_OL.timeseries['obs_obs'][:,0,row,col]
+    catparam = LDAS_io(exp=exp1, domain=domain, root=root).read_params('catparam')
+    poros = np.full(lons.shape, np.nan)
+    poros[daily_PCLSM_OL.grid.tilecoord.j_indg.values, daily_PCLSM_OL.grid.tilecoord.i_indg.values] = catparam['poros'].values
+    if poros[row,col]>0.65:
+        print("It is peat")
+
+    ###################### PLSM #######################
+    # daily PCLSM
+    ts_catdef_PCLSM_DA = daily_PCLSM_DA.read_ts('catdef', col, row, lonlat=False)
+    ts_catdef_PCLSM_DA.name = 'catdef analysis (PCLSM)'
+    ts_catdef_PCLSM_OL = daily_PCLSM_OL.read_ts('catdef', col, row, lonlat=False)
+    ts_catdef_PCLSM_OL.name = 'catdef open loop (PCLSM)'
+    ts_tp1_PCLSM_DA = daily_PCLSM_DA.read_ts('tp1', col, row, lonlat=False)
+    ts_tp1_PCLSM_DA.name = 'tp1 analysis (PCLSM)'
+    ts_tp1_PCLSM_OL = daily_PCLSM_OL.read_ts('tp1', col, row, lonlat=False)
+    ts_tp1_PCLSM_OL.name = 'tp1 open loop (PCLSM)'
+    ts_sfmc_PCLSM_DA = daily_PCLSM_DA.read_ts('sfmc', col, row, lonlat=False)
+    ts_sfmc_PCLSM_DA.name = 'sfmc analysis (PCLSM)'
+    ts_sfmc_PCLSM_OL = daily_PCLSM_OL.read_ts('sfmc', col, row, lonlat=False)
+    ts_sfmc_PCLSM_OL.name = 'sfmc open loop (PCLSM)'
+
+    # ObsFcstAna PCLSM
+    ts_obs_1 = ObsFcstAna_PCLSM_OL.read_ts('obs_obs', col, row, species=1, lonlat=False)
+    ts_obs_1.name = 'Tb obs (species=1)'
+    ts_obs_2 = ObsFcstAna_PCLSM_OL.read_ts('obs_obs', col, row, species=2, lonlat=False)
+    ts_obs_2.name = 'Tb obs (species=2)'
+    ts_obs_3 = ObsFcstAna_PCLSM_OL.read_ts('obs_obs', col, row, species=3, lonlat=False)
+    ts_obs_3.name = 'Tb obs (species=3)'
+    ts_obs_4 = ObsFcstAna_PCLSM_OL.read_ts('obs_obs', col, row, species=4, lonlat=False)
+    ts_obs_4.name = 'Tb obs (species=4)'
+
+    ts_obs_resc_PCLSM_1 = ObsFcstAna_PCLSM_DA.read_ts('obs_obs', col, row, species=1, lonlat=False)
+    ts_obs_resc_PCLSM_1.name = 'Tb obs resc. PCLSM (species=1)'
+    ts_obs_resc_PCLSM_2 = ObsFcstAna_PCLSM_DA.read_ts('obs_obs', col, row, species=2, lonlat=False)
+    ts_obs_resc_PCLSM_2.name = 'Tb obs resc. PCLSM (species=2)'
+    ts_obs_resc_PCLSM_3 = ObsFcstAna_PCLSM_DA.read_ts('obs_obs', col, row, species=3, lonlat=False)
+    ts_obs_resc_PCLSM_3.name = 'Tb obs resc. PCLSM (species=3)'
+    ts_obs_resc_PCLSM_4 = ObsFcstAna_PCLSM_DA.read_ts('obs_obs', col, row, species=4, lonlat=False)
+    ts_obs_resc_PCLSM_4.name = 'Tb obs resc. PCLSM (species=4)'
+
+    ts_fcst_PCLSM_OL_1 = ObsFcstAna_PCLSM_OL.read_ts('obs_fcst', col, row, species=1, lonlat=False)
+    ts_fcst_PCLSM_OL_1.name = 'Tb fcst PCLSM OL (species=1)'
+    ts_fcst_PCLSM_OL_2 = ObsFcstAna_PCLSM_OL.read_ts('obs_fcst', col, row, species=2, lonlat=False)
+    ts_fcst_PCLSM_OL_2.name = 'Tb fcst PCLSM OL (species=2)'
+    ts_fcst_PCLSM_OL_3 = ObsFcstAna_PCLSM_OL.read_ts('obs_fcst', col, row, species=3, lonlat=False)
+    ts_fcst_PCLSM_OL_3.name = 'Tb fcst PCLSM OL (species=3)'
+    ts_fcst_PCLSM_OL_4 = ObsFcstAna_PCLSM_OL.read_ts('obs_fcst', col, row, species=4, lonlat=False)
+    ts_fcst_PCLSM_OL_4.name = 'Tb fcst PCLSM OL (species=4)'
+
+    ts_ana_PCLSM_1 = ObsFcstAna_PCLSM_DA.read_ts('obs_ana', col, row, species=1, lonlat=False)
+    ts_ana_PCLSM_1.name = 'Tb ana PCLSM (species=1)'
+    ts_ana_PCLSM_2 = ObsFcstAna_PCLSM_DA.read_ts('obs_ana', col, row, species=2, lonlat=False)
+    ts_ana_PCLSM_2.name = 'Tb ana PCLSM (species=2)'
+    ts_ana_PCLSM_3 = ObsFcstAna_PCLSM_DA.read_ts('obs_ana', col, row, species=3, lonlat=False)
+    ts_ana_PCLSM_3.name = 'Tb ana PCLSM (species=3)'
+    ts_ana_PCLSM_4 = ObsFcstAna_PCLSM_DA.read_ts('obs_ana', col, row, species=4, lonlat=False)
+    ts_ana_PCLSM_4.name = 'Tb ana PCLSM (species=4)'
+
+    #ts_innov_1 = ts_obs_1 - ts_fcst_1
+    #ts_innov_1[ts_assim_1!=-1] = np.nan
+    #ts_innov_1.name = 'innov (species=1,PCLSM)'
+    #ts_innov_2 = ts_obs_2 - ts_fcst_2
+    #ts_innov_2[ts_assim_2!=-1] = np.nan
+    #ts_innov_2.name = 'innov (species=2,PCLSM)'
+    #ts_innov_3 = ts_obs_3 - ts_fcst_3
+    #ts_innov_3[ts_assim_3!=-1] = np.nan
+    #ts_innov_3.name = 'innov (species=3,PCLSM)'
+    #ts_innov_4 = ts_obs_4 - ts_fcst_4
+    #ts_innov_4[ts_assim_4!=-1] = np.nan
+    #ts_innov_4.name = 'innov (species=4,PCLSM)'
+
+    # incr PCLSM
+    # ts_incr_catdef = io_incr.read_ts('catdef', col, row, lonlat=False).replace(0,np.nan)
+    # ts_incr_catdef.name = 'catdef incr'
+    # ts_incr_srfexc = io_incr.read_ts('srfexc', col, row, lonlat=False).replace(0,np.nan)
+    # ts_incr_srfexc.name = 'srfexc incr'
+
+    # ensstd PCLSM
+    #ts_ens_catdef = io_ens.read_ts('catdef', col, row, lonlat=False).replace(0,np.nan)
+    #ts_ens_catdef.name = 'catdef'
+    #ts_ens_srfexc = io_ens.read_ts('srfexc', col, row, lonlat=False).replace(0,np.nan)
+    #ts_ens_srfexc.name = 'srfexc'
+
+    ###################### CLSM #######################
+    # daily CLSM
+    ts_catdef_CLSM_DA = daily_CLSM_DA.read_ts('catdef', col, row, lonlat=False)
+    ts_catdef_CLSM_DA.name = 'catdef analysis (CLSM)'
+    ts_catdef_CLSM_OL = daily_CLSM_OL.read_ts('catdef', col, row, lonlat=False)
+    ts_catdef_CLSM_OL.name = 'catdef open loop (CLSM)'
+    ts_tp1_CLSM_DA = daily_CLSM_DA.read_ts('tp1', col, row, lonlat=False)
+    ts_tp1_CLSM_DA.name = 'tp1 analysis (CLSM)'
+    ts_tp1_CLSM_OL = daily_CLSM_OL.read_ts('tp1', col, row, lonlat=False)
+    ts_tp1_CLSM_OL.name = 'tp1 open loop (CLSM)'
+    ts_sfmc_CLSM_DA = daily_CLSM_DA.read_ts('sfmc', col, row, lonlat=False)
+    ts_sfmc_CLSM_DA.name = 'sfmc analysis (CLSM)'
+    ts_sfmc_CLSM_OL = daily_CLSM_OL.read_ts('sfmc', col, row, lonlat=False)
+    ts_sfmc_CLSM_OL.name = 'sfmc open loop (CLSM)'
+
+    # ObsFcstAna CLSM
+    ts_obs_resc_CLSM_1 = ObsFcstAna_CLSM_DA.read_ts('obs_obs', col, row, species=1, lonlat=False)
+    ts_obs_resc_CLSM_1.name = 'Tb obs resc. CLSM (species=1)'
+    ts_obs_resc_CLSM_2 = ObsFcstAna_CLSM_DA.read_ts('obs_obs', col, row, species=2, lonlat=False)
+    ts_obs_resc_CLSM_2.name = 'Tb obs resc. CLSM (species=2)'
+    ts_obs_resc_CLSM_3 = ObsFcstAna_CLSM_DA.read_ts('obs_obs', col, row, species=3, lonlat=False)
+    ts_obs_resc_CLSM_3.name = 'Tb obs resc. CLSM (species=3)'
+    ts_obs_resc_CLSM_4 = ObsFcstAna_CLSM_DA.read_ts('obs_obs', col, row, species=4, lonlat=False)
+    ts_obs_resc_CLSM_4.name = 'Tb obs resc. CLSM (species=4)'
+
+    ts_fcst_CLSM_OL_1 = ObsFcstAna_CLSM_OL.read_ts('obs_fcst', col, row, species=1, lonlat=False)
+    ts_fcst_CLSM_OL_1.name = 'Tb fcst CLSM OL (species=1)'
+    ts_fcst_CLSM_OL_2 = ObsFcstAna_CLSM_OL.read_ts('obs_fcst', col, row, species=2, lonlat=False)
+    ts_fcst_CLSM_OL_2.name = 'Tb fcst CLSM OL (species=2)'
+    ts_fcst_CLSM_OL_3 = ObsFcstAna_CLSM_OL.read_ts('obs_fcst', col, row, species=3, lonlat=False)
+    ts_fcst_CLSM_OL_3.name = 'Tb fcst CLSM OL (species=3)'
+    ts_fcst_CLSM_OL_4 = ObsFcstAna_CLSM_OL.read_ts('obs_fcst', col, row, species=4, lonlat=False)
+    ts_fcst_CLSM_OL_4.name = 'Tb fcst CLSM OL (species=4)'
+
+    ts_ana_CLSM_1 = ObsFcstAna_CLSM_DA.read_ts('obs_ana', col, row, species=1, lonlat=False)
+    ts_ana_CLSM_1.name = 'Tb ana CLSM (species=1)'
+    ts_ana_CLSM_2 = ObsFcstAna_CLSM_DA.read_ts('obs_ana', col, row, species=2, lonlat=False)
+    ts_ana_CLSM_2.name = 'Tb ana CLSM (species=2)'
+    ts_ana_CLSM_3 = ObsFcstAna_CLSM_DA.read_ts('obs_ana', col, row, species=3, lonlat=False)
+    ts_ana_CLSM_3.name = 'Tb ana CLSM (species=3)'
+    ts_ana_CLSM_4 = ObsFcstAna_CLSM_DA.read_ts('obs_ana', col, row, species=4, lonlat=False)
+    ts_ana_CLSM_4.name = 'Tb ana CLSM (species=4)'
+
+    df = pd.concat((ts_obs_1, ts_obs_2, ts_obs_3, ts_obs_4,
+        ts_fcst_CLSM_OL_1, ts_fcst_CLSM_OL_2, ts_fcst_CLSM_OL_3, ts_fcst_CLSM_OL_4,
+        ts_fcst_PCLSM_OL_1, ts_fcst_PCLSM_OL_2, ts_fcst_PCLSM_OL_3, ts_fcst_PCLSM_OL_4,
+        ts_obs_resc_CLSM_1, ts_obs_resc_CLSM_2, ts_obs_resc_CLSM_3, ts_obs_resc_CLSM_4,
+        ts_obs_resc_PCLSM_1, ts_obs_resc_PCLSM_2, ts_obs_resc_PCLSM_3, ts_obs_resc_PCLSM_4),
+        axis=1)
+
+    ts_sfmc_CLSM_DA[ts_tp1_CLSM_DA<273.15] = np.nan
+    ts_sfmc_PCLSM_OL[ts_tp1_PCLSM_OL<273.15] = np.nan
+    df1 = pd.concat((ts_sfmc_CLSM_DA, ts_sfmc_PCLSM_OL,
+        ts_tp1_CLSM_DA, ts_tp1_PCLSM_OL),
+        axis=1)
+
+    #df = pd.concat((ts_obs_1, ts_obs_2, ts_obs_3, ts_obs_4, ts_fcst_1, ts_fcst_2, ts_fcst_3, ts_fcst_4, ts_incr_catdef),axis=1).dropna()
+    #mask = (df.index > '2016-05-01 00:00:00') & (df.index <= '2016-06-01 00:00:00')
+    #df = df.loc[mask]
+    col_CLSM = (0.42745098, 0.71372549, 1. )
+    col_PCLSM = (0.14117647, 1., 0.14117647)
+
+    plt.figure(figsize=(10,17))
+    fontsize = 12
+
+    ax1 = plt.subplot(811)
+    df1[['sfmc analysis (CLSM)','sfmc open loop (PCLSM)']].plot(ax=ax1, fontsize=fontsize, style=['-','-'], color = [col_CLSM, col_PCLSM], linewidth=2)
+    plt.ylabel('sfmc [-]')
+
+    ax2 = plt.subplot(812)
+    df1[['tp1 analysis (CLSM)','tp1 open loop (PCLSM)']].plot(ax=ax2, fontsize=fontsize, style=['-','-'], color = [col_CLSM, col_PCLSM], linewidth=2)
+    plt.ylabel('tp1 [-]')
+
+    ax3 = plt.subplot(813)
+    df[['Tb obs (species=1)','Tb fcst CLSM OL (species=1)','Tb fcst PCLSM OL (species=1)']].plot(ax=ax3, fontsize=fontsize, style=['.-','.-','.-'], color = ['k', col_CLSM, col_PCLSM], linewidth=2)
+    plt.ylabel('Tb [K]')
+
+    ax4 = plt.subplot(814)
+    df[['Tb obs (species=3)','Tb fcst CLSM OL (species=3)','Tb fcst PCLSM OL (species=3)']].plot(ax=ax4, fontsize=fontsize, style=['.-','.-','.-'], color = ['k', col_CLSM, col_PCLSM], linewidth=2)
+    plt.ylabel('Tb [K]')
+
+    ax5 = plt.subplot(815)
+    df[['Tb obs resc. CLSM (species=1)','Tb fcst CLSM OL (species=1)']].plot(ax=ax5, fontsize=fontsize, style=['.-','.-'], color = ['k', col_CLSM], linewidth=2)
+    plt.ylabel('Tb [K]')
+
+    ax6 = plt.subplot(816)
+    df[['Tb obs resc. CLSM (species=3)','Tb fcst CLSM OL (species=3)']].plot(ax=ax6, fontsize=fontsize, style=['.-','.-'], color = ['k', col_CLSM], linewidth=2)
+    plt.ylabel('Tb [K]')
+
+    ax7 = plt.subplot(817)
+    df[['Tb obs resc. PCLSM (species=1)','Tb fcst PCLSM OL (species=1)']].plot(ax=ax7, fontsize=fontsize, style=['.-','.-'], color = ['k', col_PCLSM], linewidth=2)
+    plt.ylabel('Tb [K]')
+
+    ax8 = plt.subplot(818)
+    df[['Tb obs resc. PCLSM (species=3)','Tb fcst PCLSM OL (species=3)']].plot(ax=ax8, fontsize=fontsize, style=['.-','.-'], color = ['k', col_PCLSM], linewidth=2)
+    plt.ylabel('Tb [K]')
+
+    my_title = 'lon=%s, lat=%s' % (lon,lat)
+    plt.title(my_title, fontsize=fontsize+2)
+
+    #ax3 = plt.subplot(413)
+    #df[['a1','a2','a3','a4']].plot(ax=ax3, fontsize=fontsize, style=['.-','.-','.-','.-'], linewidth=2)
+    #plt.ylabel('Tb [K]')
+
+    plt.tight_layout()
+    fname = 'sfmc_Tb_resc_col_%s_row_%s' % (col,row)
+    fname_long = os.path.join(outpath, exp1, fname+'.png')
+    plt.savefig(fname_long, dpi=150)
+    plt.close()
 
 if __name__=='__main__':
     plot_ismn_statistics()
