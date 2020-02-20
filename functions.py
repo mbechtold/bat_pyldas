@@ -37,6 +37,7 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
     # wtd_obs
     # wtd_mod
     # precip_obs
+    # precip_mod
 
     """
     Function to read
@@ -94,11 +95,11 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
             continue
 
  #sebastian added       #to select only the drained of only the natural ones to calculate skill metrics!
-        if master_table['drained_U=uncertain'][i] == 'N':
+        if master_table['drained_U=uncertain'][i] == 'D':
             continue
 
-        if master_table['drained_U=uncertain'][i] == 'U':
-            continue
+        #if master_table['drained_U=uncertain'][i] == 'U':
+        #    continue
 
         # Get lat lon from master table for site.
         lon = master_table['lon'][i]
@@ -124,8 +125,9 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
             print(site_ID + " not on a peatland grid cell.")
             continue
 
-        #    folder_p = insitu_path + '/Sipalaga/processed/Precipitation/Daily/'
-        #    site_precip = site_ID
+        folder_p = insitu_path + '/Rainfall/'
+        site_precip = site_ID
+
         try:
             if isinstance(find_files(insitu_path, site_ID),str):
                 filename_wtd = find_files(insitu_path, site_ID)
@@ -136,13 +138,32 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
                     if f.count('aily')>=1:
                         filename_wtd = f
         except:
-            print(site_ID + " does not have a csv file with data.")
+            print(site_ID + " does not have a WTD csv file with data.")
             continue
         # check for empty path
         if len(filename_wtd)<10 or filename_wtd.endswith('csv')!=True or filename_wtd.count('Rainfall')>=1:
             print("checking ... "+site_ID+" "+filename_wtd)
             print("some other reason for no data for " +site_ID+" in "+filename_wtd)
             continue
+
+        #same for precipitation data
+        try:
+            if isinstance(find_files(folder_p, site_ID), str):
+                filename_precip = find_files(folder_p, site_ID)
+                print(filename_precip)
+            else:
+                flist = find_files(folder_p, site_ID)
+                for f in flist:
+                    if f.count('aily') >= 1:
+                        filename_precip = f
+                # check for empty path
+            if len(filename_precip) < 10 or filename_precip.endswith('csv') != True or filename_precip.count('WTD') >= 1:
+                print("checking ... " + site_ID + " " + filename_precip)
+                print("some other reason for no data for " + site_ID + " in " + filename_precip)
+                continue
+        except:
+            filename_precip=''
+            print(site_ID + " does not have a precipitation csv file with data.")
 
         # cumbersome first site, next sides ... to be simplified ...
         if first_site == True:
@@ -151,20 +172,20 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
             print("reading ... "+filename_wtd)
             wtd_obs = pd.read_csv(filename_wtd)
             if wtd_obs.shape[1]==1:
-                print("csv file with semicolon ...")
+                print("WTD csv file with semicolon ...")
                 wtd_obs = pd.read_csv(filename_wtd,sep=';')
             wtd_obs.columns = ['time', site_ID]
             wtd_obs['time'] = pd.to_datetime(wtd_obs['time'])
             wtd_obs = wtd_obs.set_index('time')
             try:
                 # Precipitation:
-                precip_obs = pd.read_csv(folder_p + site_precip + '.csv')
+                precip_obs = pd.read_csv(filename_precip)
                 precip_obs.columns = ['time', site_ID]
                 precip_obs['time'] = pd.to_datetime(precip_obs['time'])
                 precip_obs = precip_obs.set_index('time')
             except:
                 precip_obs = wtd_obs.copy()
-                precip_obs[site_ID]=-9999
+                precip_obs[site_ID]=-10
 
             # Load model wtd data.
             wtd_mod = io.read_ts('zbar', lon, lat, lonlat=True)
@@ -173,46 +194,89 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
             no_overlap = pd.isnull(df_check).any(axis=1)
             if False in no_overlap.values:
                 first_site = False
+
+
+            # Load model precip data. --> only simulated for natural so keep natural one
+            try:
+                io2=LDAS_io('daily', exp='INDONESIA_M09_PEATCLSMTN_v01', domain=domain, root=root)
+                precip_mod = io2.read_ts('Rainf', lon, lat, lonlat=True)
+            except:
+                precip_mod = wtd_mod.copy()
+                precip_mod[site_ID]=-15
+
+            # Check if overlapping data.
+            df_check = pd.concat((precip_obs,precip_mod), axis=1)
+            no_overlap = pd.isnull(df_check).any(axis=1)
+            if False in no_overlap.values:
+                first_site = False
+
         else:
             # Load in situ data.
             # wtd:
             print("reading ... "+filename_wtd)
             wtd_obs_tmp = pd.read_csv(filename_wtd)
             if wtd_obs_tmp.shape[1]==1:
-                print("csv file with semicolon ...")
+                print("WTD csv file with semicolon ...")
                 wtd_obs_tmp = pd.read_csv(filename_wtd,sep=';')
             wtd_obs_tmp.columns = ['time', site_ID]
             wtd_obs_tmp['time'] = pd.to_datetime(wtd_obs_tmp['time'])
             wtd_obs_tmp = wtd_obs_tmp.set_index('time')
             try:
                 # Precipitation:
-                precip_obs_tmp = pd.read_csv(folder_p + site_precip + '.csv')
+                precip_obs_tmp = pd.read_csv(filename_precip)
                 precip_obs_tmp.columns = ['time', site_ID]
                 precip_obs_tmp['time'] = pd.to_datetime(precip_obs_tmp['time'])
                 precip_obs_tmp = precip_obs_tmp.set_index('time')
             except:
                 precip_obs_tmp = wtd_obs_tmp.copy()
-                precip_obs_tmp[site_ID]=-9999
+                precip_obs_tmp[site_ID]=-10
+
+            #temporarly added this to go around an error
+            #precip_obs_tmp[site_ID] = -1
 
             # Load model data.
+
             wtd_mod_tmp = io.read_ts('zbar', lon, lat, lonlat=True)
 
             # Check if overlaping data.
-            if site_ID.startswith('Taka1_Palangkraya_da'):
-                print('s')
-            df_check = pd.concat((wtd_obs_tmp,wtd_mod_tmp), axis=1)
+            #if site_ID.startswith('Taka1_Palangkraya_da'):
+            #    print('s')
+            df_check_wtd = pd.concat((wtd_obs_tmp,wtd_mod_tmp), axis=1)
+            no_overlap_wtd = pd.isnull(df_check_wtd).any(axis=1)
+
+            try:
+                # Load model precip data.
+                io2 = LDAS_io('daily', exp='INDONESIA_M09_PEATCLSMTN_v01', domain=domain, root=root)
+                precip_mod_tmp = io2.read_ts('Rainf', lon, lat, lonlat=True)
+            except:
+                precip_mod_tmp = wtd_mod_tmp.copy()
+                precip_mod_tmp[site_ID] = -15
+            # Check if overlapping data.
+            #df_check = pd.concat((precip_obs_tmp, precip_mod_tmp), axis=1)
+            df_check = pd.concat((precip_obs_tmp.loc[~precip_obs_tmp.index.duplicated(keep='first')],precip_mod_tmp), axis=1)
             no_overlap = pd.isnull(df_check).any(axis=1)
-            if False in no_overlap.values:
+
+            if False in no_overlap_wtd.values:
+                first_site = False
+
+            if False in no_overlap_wtd.values:
                 wtd_obs = pd.concat((wtd_obs, wtd_obs_tmp), axis=1)
                 wtd_mod = pd.concat((wtd_mod, wtd_mod_tmp), axis=1)
-                precip_obs = pd.concat((precip_obs, precip_obs_tmp), axis=1)
+
+            if False in no_overlap.values:
+                #precip_obs = pd.concat((precip_obs, precip_obs_tmp), axis=1)
+                precip_obs = pd.concat((precip_obs_tmp.loc[~precip_obs_tmp.index.duplicated(keep='first')],precip_obs), axis=1)
+                precip_mod = pd.concat((precip_mod, precip_mod_tmp), axis=1)
 
     wtd_mod = pd.DataFrame(wtd_mod)
     wtd_mod.columns = wtd_obs.columns
 
+    precip_mod = pd.DataFrame(precip_mod)
+    precip_mod.columns = wtd_obs.columns
+
  #Sebastian added   #to create the csv files for Susan Page
     #wtd_mod_export_csv = wtd_mod.to_csv (r'/data/leuven/317/vsc31786/peatland_data/tropics/WTD/Sipalaga/processed/WTD/model_WTD/model_WTD_Natural.csv', index = True, header=True)
-    return wtd_obs, wtd_mod, precip_obs
+    return wtd_obs, wtd_mod, precip_obs, precip_mod
 
 #################################################################
 #################################################################

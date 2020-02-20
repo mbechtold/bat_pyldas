@@ -8,6 +8,7 @@ import xarray as xr
 import pandas as pd
 import numpy as np
 import datetime
+import seaborn as sns
 import matplotlib.pyplot as plt
 from mpl_toolkits.basemap import Basemap
 from matplotlib.colors import LogNorm
@@ -127,59 +128,124 @@ def plot_catparams(exp, domain, root, outpath):
         figure_single_default(data=data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
                               llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title=param)
 
-def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, exp, outpath):
+def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, exp, outpath):
 
     # Initiate dataframe to store metrics in.
     INDEX = wtd_obs.columns
-    COL = ['bias', 'ubRMSD', 'Pearson_R', 'RMSD']
+    COL = ['bias (m)', 'ubRMSD (m)', 'Pearson_R (-)', 'RMSD (m)','abs_bias (m)']
     df_metrics = pd.DataFrame(index=INDEX, columns=COL,dtype=float)
+
+    # Initiate dataframe to store metrics in.
+    INDEX = precip_obs.columns
+    COL = ['bias_P (m)', 'ubRMSD_P (m)', 'Pearson_R_P (-)', 'RMSD_P (m)','abs_bias_P (m)']
+    df_metrics_P = pd.DataFrame(index=INDEX, columns=COL,dtype=float)
 
     for c,site in enumerate(wtd_obs.columns):
 
-        df_tmp = pd.concat((wtd_obs[site],wtd_mod[site]),axis=1)
-        df_tmp.columns = ['data_obs','data_mod']
+        df_tmp_wtd = pd.concat((wtd_obs[site],wtd_mod[site]),axis=1)
+        df_tmp_wtd.columns = ['data_obs','data_mod']
 
-        df_tmp2=copy.deepcopy(df_tmp)
+        df_tmp_precip = pd.concat((precip_obs[site],precip_mod[site]),axis=1)
+        df_tmp_precip.columns = ['data_obs','data_mod']
 
-        bias_site = metrics.bias(df_tmp2) # Bias = bias_site[0]
-        ubRMSD_site = metrics.ubRMSD(df_tmp2) # ubRMSD = ubRMSD_site[0]
-        pearson_R_site = metrics.Pearson_R(df_tmp2) # Pearson_R = pearson_R_site[0]
+        df_tmp2_wtd=copy.deepcopy(df_tmp_wtd)
+        df_tmp2_wtd =df_tmp2_wtd[['data_mod','data_obs']]
+
+        df_tmp2_precip=copy.deepcopy(df_tmp_precip)
+        df_tmp2_precip =df_tmp2_precip[['data_mod','data_obs']]
+
+        bias_site = metrics.bias(df_tmp2_wtd) # Bias = bias_site[0]
+        ubRMSD_site = metrics.ubRMSD(df_tmp2_wtd) # ubRMSD = ubRMSD_site[0]
+        pearson_R_site = metrics.Pearson_R(df_tmp2_wtd) # Pearson_R = pearson_R_site[0]
         RMSD_site = (ubRMSD_site[0]**2 + bias_site[0]**2)**0.5
+        abs_bias_site = bias_site.abs()
+        #abs_bias_site_value = abs(abs_bias_site)
+        #abs_bias_site = abs_bias_site('bias').update(abs_bias_site_value('bias'))
+
 
         # Save metrics in df_metrics.
-        df_metrics.loc[site]['bias'] = bias_site[0]
-        df_metrics.loc[site]['ubRMSD'] =  ubRMSD_site[0]
-        df_metrics.loc[site]['Pearson_R'] = pearson_R_site[0]
-        df_metrics.loc[site]['RMSD'] = RMSD_site
+        df_metrics.loc[site]['bias (m)'] = bias_site[0]
+        df_metrics.loc[site]['ubRMSD (m)'] = ubRMSD_site[0]
+        df_metrics.loc[site]['Pearson_R (-)'] = pearson_R_site[0]
+        df_metrics.loc[site]['RMSD (m)'] = RMSD_site
+        df_metrics.loc[site]['abs_bias (m)'] = abs_bias_site[0]
+
+        if (-10) in set(df_tmp_precip['data_obs']):
+            continue
+        else:
+            bias_site_P = metrics.bias(df_tmp2_precip)  # Bias = bias_site[0]
+            ubRMSD_site_P = metrics.ubRMSD(df_tmp2_precip)  # ubRMSD = ubRMSD_site[0]
+            pearson_R_site_P = metrics.Pearson_R(df_tmp2_precip)  # Pearson_R = pearson_R_site[0]
+            RMSD_site_P = (ubRMSD_site_P[0] ** 2 + bias_site_P[0] ** 2) ** 0.5
+            abs_bias_site_P = bias_site_P.abs()
+
+            # Save metrics in df_metrics.
+            df_metrics_P.loc[site]['bias_P (m)'] = bias_site_P[0]
+            df_metrics_P.loc[site]['ubRMSD_P (m)'] = ubRMSD_site_P[0]
+            df_metrics_P.loc[site]['Pearson_R_P (-)'] = pearson_R_site_P[0]
+            df_metrics_P.loc[site]['RMSD_P (m)'] = RMSD_site_P
+            df_metrics_P.loc[site]['abs_bias_P (m)'] = abs_bias_site_P[0]
 
         # Create x-axis matching in situ data.
-        x_start = df_tmp2.index[0]  # Start a-axis with the first day with an observed wtd value.
-        x_end = df_tmp2.index[-1]   # End a-axis with the last day with an observed wtd value.
-        Xlim = [x_start, x_end]
+        x_start_wtd = df_tmp2_wtd.index[0]  # Start a-axis with the first day with an observed wtd value.
+        x_end_wtd = df_tmp2_wtd.index[-1]   # End a-axis with the last day with an observed wtd value.
+        Xlim_wtd = [x_start_wtd, x_end_wtd]
+
+        # Create x-axis matching in situ data.
+        x_start_precip = df_tmp_precip.index[0]  # Start a-axis with the first day with an observed wtd value.
+        x_end_precip = df_tmp_precip.index[-1]   # End a-axis with the last day with an observed wtd value.
+        Xlim_precip = [x_start_precip, x_end_precip]
+
 
         # Calculate z-score for the time series.
 
-        df_zscore = df_tmp2.apply(zscore)
+        df_zscore = df_tmp2_wtd.apply(zscore)
+        df_zscore_P = df_tmp2_precip.apply(zscore)
 
-        plt.figure(figsize=(16, 6.5))
+
+        plt.figure(figsize=(16, 8.5))
         fontsize = 12
 
-        ax1 = plt.subplot(311)
-        df_tmp =df_tmp[['data_mod','data_obs']]
-        df_tmp.plot(ax=ax1, fontsize=fontsize, style=['-','.'], color=['y','#1f77b4'], linewidth=2, xlim=Xlim)
+        ax1 = plt.subplot2grid((3,3), (0,0), rowspan=1, colspan=3, fig=None)
+        df_tmp_wtd =df_tmp_wtd[['data_mod','data_obs']]
+        df_tmp_wtd.plot(ax=ax1, fontsize=fontsize, style=['-','.'], color=['g','#1f77b4'], linewidth=2, markersize=4.5, xlim=Xlim_wtd)
         plt.ylabel('zbar [m]')
 
-        Title = site + '\n' + ' bias = ' + str(bias_site[0]) + ', ubRMSD = ' + str(ubRMSD_site[0]) + ', Pearson_R = ' + str(pearson_R_site[0]) + ', RMSD = ' + str(RMSD_site)
+        Title = site + '\n' + ' bias = ' + str(bias_site[0]) + ', ubRMSD = ' + str(ubRMSD_site[0]) + ', Pearson_R = ' + str(pearson_R_site[0]) + ', RMSD = ' + str(RMSD_site) + ' abs_bias = ' + str(abs_bias_site[0])
         plt.title(Title)
 
-        ax2 = plt.subplot(312)
+        ax2 = plt.subplot2grid((3,3), (1,0), rowspan=1, colspan=3, fig=None)
         df_zscore = df_zscore[['data_mod', 'data_obs']]
-        df_zscore.plot(ax=ax2, fontsize=fontsize, style=['-','.'], color=['y','#1f77b4'], linewidth=2, xlim=Xlim)
+        df_zscore.plot(ax=ax2, fontsize=fontsize, style=['-','-'], color=['g','#1f77b4'], linewidth=2, xlim=Xlim_wtd)
         plt.ylabel('z-score')
 
-        ax3 = plt.subplot(313)
-        precip_obs[site].plot(ax=ax3, fontsize=fontsize, style=['.','.'], color=['y','#1f77b4'], linewidth=2, xlim=Xlim)
-        plt.ylabel('precipitation [mm/d]')
+        if (-10) in set(df_tmp_precip['data_obs']):
+            ax3 = plt.subplot2grid((3, 3), (2, 0), rowspan=1, colspan=3, fig=None)
+            df_tmp_precip = df_tmp_precip[['data_mod', 'data_obs']]
+            df_tmp_precip.plot(ax=ax3, fontsize=fontsize, style=['-', '.'], color=['g', '#1f77b4'], linewidth=2, markersize=4.5, xlim=Xlim_wtd)
+            plt.ylabel('precipitation [mm/d]')
+        else:
+            ax3 = plt.subplot2grid((3,3), (2,0), rowspan=1, colspan=2, fig=None)
+            df_tmp_precip = df_tmp_precip[['data_mod', 'data_obs']]
+            df_tmp_precip.plot(ax=ax3,fontsize=fontsize, style=['-','.'], color=['g','#1f77b4'], linewidth=2, markersize=4.5 ,xlim=Xlim_wtd)
+            plt.ylabel('precipitation [mm/d]')
+
+            # Sebastian added #to plot the obs vs meas rainfall and 1/1line
+            #ax4 = plt.subplot2grid((3,3), (2,2), rowspan=1, colspan=1, fig=None)
+            #df_tmp_precip.plot(ax=ax4, fontsize=fontsize, x='data_mod',y='data_obs', style=['.'],color='#1f77b4', markersize=2.5, label='Precipitation (mm/day)')
+            #plt.plot([0,250],[0,250], linestyle='solid', color='red')
+            #plt.ylabel('data_obs')
+            #plt.xlabel('data_mod')
+            #plt.legend(fontsize=9)
+            #plt.xticks(np.arange(0, 121, step=20))
+            #plt.yticks(np.arange(0, 251, step=50))
+
+            ax4 = plt.subplot2grid((3,3), (2,2), rowspan=1, colspan=2, fig=None)
+            df_tmp_precip_sum = df_tmp_precip.dropna(axis=0,how='any')
+            df_tmp_precip_sum = df_tmp_precip_sum[['data_mod', 'data_obs']].cumsum(skipna=True)
+            df_tmp_precip_sum.plot(ax=ax4,fontsize=fontsize, style=['-','-'], color=['g','#1f77b4'], linewidth=2, markersize=0.5 ,xlim=Xlim_wtd)
+            plt.ylabel('Cumulative precipitation [mm/d]')
+
 
         plt.tight_layout()
         fname = site
@@ -187,11 +253,37 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, exp, outpath)
         plt.savefig(fname_long, dpi=150)
         plt.close()
 
-    # Plot boxplot for metrics
+    df_allmetrics= df_metrics.join(df_metrics_P)
+    df_allmetrics_new= df_allmetrics[df_allmetrics['Pearson_R_P (-)']>0.28].dropna()
+    df_all_biasP= (df_allmetrics_new['abs_bias_P (m)']-df_allmetrics_new['abs_bias_P (m)'].min())/(df_allmetrics_new['abs_bias_P (m)'].max()-df_allmetrics_new['abs_bias_P (m)'].min())
+    df_all_RWTD= (df_allmetrics_new['Pearson_R (-)']-df_allmetrics_new['Pearson_R (-)'].min())/(df_allmetrics_new['Pearson_R (-)'].max()-df_allmetrics_new['Pearson_R (-)'].min())
+    df_all_biasP=pd.DataFrame(df_all_biasP)
+    df_all_RWTD=pd.DataFrame(df_all_RWTD)
+    df_allWTDP = df_all_biasP.join(df_all_RWTD)
+
+
+    plt.figure()
+    fname = 'WTD_precip'
+    fname_long = os.path.join(outpath + '/comparison_insitu_data/' + fname + '.png')
+    df_allWTDP.plot(fontsize=fontsize, x='abs_bias_P (m)',y='Pearson_R (-)', style=['.'],color='r', markersize=4, label='Pearson R')
+    plt.ylabel('normalize WTD R-values')
+    plt.xlabel('normalized absolute bias precipitation')
+    plt.xlim(left=-0.05, right=1.05)
+    plt.ylim(top=1.05, bottom=-0.05)
+    plt.legend(fontsize=fontsize)
+    plt.savefig(fname_long, dpi=150)
+    plt.close()
+
+
+    # Plot boxplot for metrics of WTD only
     plt.figure()
     df_metrics.boxplot()
     fname = 'metrics'
     fname_long = os.path.join(outpath + '/comparison_insitu_data/' + fname + '.png')
+    mean = df_metrics.mean()
+    mean = mean.round(decimals=3)
+    Title ='mean bias (m) = ' + str(mean['bias (m)']) + ', mean ubRMSD (m) = ' + str(mean['ubRMSD (m)']) + ', mean Pearson_R (-) = ' + str(mean['Pearson_R (-)']) + '\n' + ' mean RMSD (m) = ' + str(mean['RMSD (m)']) + ', mean abs_bias (m) = ' + str(mean['abs_bias (m)'])
+    plt.title(Title, fontsize=9)
     plt.savefig(fname_long, dpi=150)
     plt.close()
 
@@ -205,12 +297,12 @@ def plot_skillmetrics_comparison_wtd_multimodel(wtd_obs, wtd_mod, precip_obs, ex
     # Initiate dataframe to store metrics in.
     INDEX = wtd_obs.columns
     COL = ['bias', 'ubRMSD', 'Pearson_R', 'RMSD']
-    df_metrics = pd.DataFrame(index=INDEX, columns=COL, dtype=float)
+    df_metrics = pd.DataFrame(index=INDEX, columns=COL, dtype=object)
 
     for c,site in enumerate(wtd_obs.columns):
 
-        df_tmp = pd.concat((wtd_obs[site], wtd_mod[0][site],wtd_mod[1][site],wtd_mod[2][site]),axis=1)
-        df_tmp.columns = ['In-situ','North','Tropics-N','Tropics-D']
+        df_tmp = pd.concat((wtd_obs[site], wtd_mod[1][site], wtd_mod[2][site],wtd_mod[3][site]),axis=1)
+        df_tmp.columns = ['In-situ','$PEATCLSM_N$','$PEATCLSM_{T,Natural}$','$PEATCLSM_{T,Drained}$']
 
         df_tmp2 = copy.deepcopy(df_tmp)
 
@@ -237,19 +329,19 @@ def plot_skillmetrics_comparison_wtd_multimodel(wtd_obs, wtd_mod, precip_obs, ex
         fontsize = 12
 
         ax1 = plt.subplot(311)
-        df_tmp =df_tmp[['North','Tropics-N', 'Tropics-D','In-situ']]
-        df_tmp.plot(ax=ax1, fontsize=fontsize, style=['-','-','-','.'], color=['orange','g','m','#1f77b4'],linewidth=1.7, xlim=Xlim)
+        df_tmp =df_tmp[['$PEATCLSM_N$','$PEATCLSM_{T,Natural}$', '$PEATCLSM_{T,Drained}$','In-situ']]
+        df_tmp.plot(ax=ax1, fontsize=fontsize, style=['-','-','-','.'], color=['y','g','m','#1f77b4'],linewidth=1.7, xlim=Xlim)
         plt.ylabel('zbar [m]')
 
         plt.title(site)
 
         ax1 = plt.subplot(312)
-        df_tmp.plot(ax=ax1, fontsize=fontsize, style=['-','-','-','.'], color=['orange','g','m','#1f77b4'],linewidth=1.7, xlim=[df_zscore.index[0],df_zscore.index[-1]])
+        df_tmp.plot(ax=ax1, fontsize=fontsize, style=['-','-','-','.'], color=['y','g','m','#1f77b4'],linewidth=1.7, xlim=[df_zscore.index[0],df_zscore.index[-1]])
         plt.ylabel('zbar [m]')
 
         ax2 = plt.subplot(313)
-        df_zscore = df_zscore[['North','Tropics-N', 'Tropics-D','In-situ']]
-        df_zscore.plot(ax=ax2, fontsize=fontsize, style=['-','-','-','.'], color=['orange','g','m','#1f77b4'],linewidth=1.7, xlim=[df_zscore.index[0],df_zscore.index[-1]])
+        df_zscore = df_zscore[['$PEATCLSM_N$','$PEATCLSM_{T,Natural}$', '$PEATCLSM_{T,Drained}$','In-situ']]
+        df_zscore.plot(ax=ax2, fontsize=fontsize, style=['-','-','-','.'], color=['y','g','m','#1f77b4'],linewidth=1.7, xlim=[df_zscore.index[0],df_zscore.index[-1]])
         plt.ylabel('z-score')
 
         plt.legend()
