@@ -3064,10 +3064,9 @@ def figure_single_default(data,lons,lats,cmin,cmax,llcrnrlat, urcrnrlat,
         cmin = np.nanmin(data)
     if cmax == None:
         cmax = np.nanmax(data)
-    if cmin < 0.0:
+    if cmin < 0.0 and cmap=='seismic':
         cmax = np.max([-cmin,cmax])
         cmin = -cmax
-        cmap = 'seismic'
     # open figure
     # Norther peatland:
     if np.mean(lats)>30:
