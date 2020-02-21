@@ -58,27 +58,60 @@ def filter_diagnostics_evaluation():
 
     tags = ['pearsonR']
 
-    lons = np.unique(lsm.grid.tilecoord['com_lon'].values)
-    lats = np.unique(lsm.grid.tilecoord['com_lat'].values)[::-1]
+    [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(lsm)
+    params = LDAS_io(exp=exp, domain=domain, root=root).read_params('catparam')
+    poros = np.full(lons.shape, np.nan)
+    tc = lsm.grid.tilecoord
+    tg = lsm.grid.tilegrids
+    poros[tc.j_indg.values, tc.i_indg.values] = params['poros'].values
+
+    #lons1D = np.unique(lsm.grid.tilecoord['com_lon'].values)
+    #lats1D = np.unique(lsm.grid.tilecoord['com_lat'].values)[::-1]
 
     species = ObsFcstAna.timeseries['species'].values
 
-    ds = ncfile_init(result_file, lats, lons, species, tags)
+    ds = ncfile_init(result_file, lats[:,0], lons[0,:], species, tags)
 
-    for lats
-        for lons
-            if poros>0.6
+    #[col, row] = get_M09_ObsFcstAna(ObsFcstAna,lon,lat)
+    #[col, row] = get_M09_ObsFcstAna(ObsFcstAna,lons.min()+2,lats.min()+2)
+    #col = col%4
 
+    for row in range(poros.shape[0]):
+        print("row: " + str(row))
+        for col in range(poros.shape[1]):
+            if poros[row,col]>0.6:
                 for i_spc,spc in enumerate(species):
+                    if np.isnan(np.nanmean(ObsFcstAna.timeseries['obs_obs'][:,i_spc,row,col]))==False:
 
-                ds['pearsonR'][:,:,i_spc] = pearsonr([0]['obs_obs'][i_spc] - [0]['obs_fcst'][i_spc]).mean(dim='time').values
+                        ts_sfmc = lsm.read_ts('sfmc', col, row, lonlat=False)
+                        ts_tp1 = lsm.read_ts('tp1', col, row, lonlat=False)
+                        ts_obsobs = ObsFcstAna.read_ts('obs_obs', col, row, species=i_spc+1, lonlat=False)
+                        ts_obsobs.name = 'obsobs'
 
-                tmp = [0]['obs_obs'][i_spc].values
-                np.place(tmp, ~np.isnan(tmp), 1.)
-                np.place(tmp, np.isnan(tmp), 0.)
-                ds['pearsonR'][:, :, i_spc] = tmp.sum(axis=2)
+                        df = pd.concat((ts_sfmc,ts_tp1,ts_obsobs),axis=1)
+                        ts_emissivity = df['obsobs']/df['tp1']
 
-            ds.close()
+                        df = pd.concat((ts_sfmc,ts_emissivity),axis=1)
+                        ds['pearsonR'][row,col,i_spc] = df.corr().values[0,1]
+
+                        #pearsonr([0]['obs_obs'][i_spc] - [0]['obs_fcst'][i_spc]).mean(dim='time').values
+                        #tmp = [0]['obs_obs'][i_spc].values
+                        #np.place(tmp, ~np.isnan(tmp), 1.)
+                        #np.place(tmp, np.isnan(tmp), 0.)
+                        #ds['pearsonR'][:, :, i_spc] = tmp.sum(axis=2)
+
+    #plt.imshow(-1.0*ds['pearsonR'][:,:,2])
+    #data = np.full(lons.shape, np.nan)
+    #data[tc.j_indg.values, tc.i_indg.values] =
+    for i_spc,spc in enumerate(species):
+        data = np.ma.masked_invalid(ds['pearsonR'][:,:,i_spc])
+        data = obs_M09_to_M36(data)
+        cmin=None
+        cmax=None
+        fname = 'R_eSM_sp'+str(i_spc)
+        figure_single_default(data=data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
+                                  llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title='R (-)',cmap='jet')
+    ds.close()
 
 if __name__ == '__main__':
     filter_diagnostics_evaluation()
