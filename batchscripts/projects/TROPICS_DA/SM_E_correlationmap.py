@@ -106,11 +106,12 @@ def filter_diagnostics_evaluation():
     for i_spc,spc in enumerate(species):
         data = np.ma.masked_invalid(ds['pearsonR'][:,:,i_spc])
         data = obs_M09_to_M36(data)
-        cmin=None
-        cmax=None
+        cmin=-1.0
+        cmax=0.3
         fname = 'R_eSM_sp'+str(i_spc)
+        figpath='/data/leuven/324/vsc32460/FIG/in_situ_comparison/IN/Drained/DA_sensitivity'
         figure_single_default(data=data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
-                                  llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title='R (-)',cmap='jet')
+                                  llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=figpath,exp=exp,fname=fname +'_' +figpath[52:59],plot_title='R (-), ' + fname + ' '+ figpath[52:59],cmap='jet')
     ds.close()
 
 if __name__ == '__main__':
