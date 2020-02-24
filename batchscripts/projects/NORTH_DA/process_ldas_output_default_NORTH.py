@@ -12,20 +12,20 @@ from bat_pyldas.functions import setup_grid_grid_for_plot
 from shutil import copyfile
 from shutil import move
 
-param='inst'
+param='daily'
 # processing
-proc_daily = 0
-proc_inst = 1
-proc_ObsFcstAna = 0
+proc_daily = 1
+proc_inst = 0
+proc_ObsFcstAna = 1
 proc_incr = 0
 proc_ensstd = 0
-proc_total_water = 0
+proc_total_water = 1
 proc_daily_stats = 1
 proc_ensstd_stats = 0
-proc_filter_diagnostics = 0
+proc_filter_diagnostics = 1
 proc_filter_diagnostics_gs = 0
 proc_filter_diagnostics_incr = 0
-proc_scaling = 0
+proc_scaling = 1
 proc_tau_and_lag1_autocor = 0
 
 #date_to='2010-08-01'
@@ -35,18 +35,19 @@ latmin=-90.
 latmax=90.
 lonmin=-180.
 lonmax=180.
-latmin=53.
-latmax=71.
-lonmin=-160.
-lonmax=-100.
+#latmin=53.
+#latmax=71.
+#lonmin=-160.
+#lonmax=-100.
 
 def main(argv):
     root='/scratch/leuven/317/vsc31786/output/'
-    root='/staging/leuven/stg_00024/OUTPUT/michelb/'
-    exp='SMOSrw_mwRTM_EASEv2_M09_CLSM_NORTH'
-    exp='GLOB_M36_7Thv_TWS_FOV0_M2'
+    #root='/staging/leuven/stg_00024/OUTPUT/michelb/'
+    #exp='SMOSrw_mwRTM_EASEv2_M09_CLSM_NORTH'
+    #exp='GLOB_M36_7Thv_TWS_FOV0_M2'
+    exp='SMAP_EASEv2_M09_SMOSfw'
     domain='SMAP_EASEv2_M09'
-    domain='SMAP_EASEv2_M36_GLOB'
+    #domain='SMAP_EASEv2_M36_GLOB'
     #vscgroup = os.getenv("HOME").split("/")[3]
     #vscname = os.getenv("HOME").split("/")[4]
     try:
@@ -238,7 +239,7 @@ def main(argv):
         os.makedirs(outputpath,exist_ok=True)
         bin2nc_scaling(exp, domain, root, outputpath,
                        scalepath=os.path.join(root,exp,'output/SMAP_EASEv2_M09/stats/z_score_clim/pentad/'),
-                       scalename='Thvf_TbSM_001_SMOS_zscore_stats_2010_p37_2012_p73_hscale_0.00_W_9p_Nmin_20')
+                       scalename='Thvf_TbSM_001_SMOS_zscore_stats_2010_p37_2019_p48_hscale_0.00_W_9p_Nmin_20')
     if proc_tau_and_lag1_autocor==1:
         calc_tau_and_lag1_autocor(io)
 

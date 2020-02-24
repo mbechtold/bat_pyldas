@@ -10,7 +10,7 @@ from bat_pyldas.functions import *
 import getpass
 
 root='/staging/leuven/stg_00024/OUTPUT/michelb'
-#root='/scratch/leuven/317/vsc31786/output'
+root='/scratch/leuven/317/vsc31786/output'
 #root='/staging/leuven/stg_00024/OUTPUT/michelb'
 #root='/scratch/leuven/317/vsc31786/output'
 outpath = '/staging/leuven/stg_00024/OUTPUT/michelb/FIG_tmp/'
@@ -25,7 +25,7 @@ if getpass.getuser()=='michel':
 exp = 'SMAP_EASEv2_M09_CLSM_SMOSfw_SMOSv102'
 exp='GLOB_M36_7Thv_TWS_FOV0_M2'
 exp = 'SMAP_EASEv2_M09_SMOSfw'
-exp = 'SMAP_EASEv2_M09_CLSM_SMOSfw'
+#exp = 'SMAP_EASEv2_M09_CLSM_SMOSfw'
 #exp= 'SMOSrw_mwRTM_EASEv2_M09_CLSM_NORTH'
 #exp = 'SMAP_EASEv2_M09_CLSM_SMOSfw_L4_SM_v4_RTMparam'
 domain = 'SMAP_EASEv2_M09'
@@ -38,6 +38,8 @@ dti = pd.date_range('2018-08-06', periods=2, freq='3H')
 dti_kg = pd.date_range('2010-01-01', periods=365*9*8, freq='3H')
 
 os.makedirs(outpath,exist_ok=True)
+
+plot_zoom_example(exp, domain, root, outpath, param='daily')
 
 plot_maps=0
 if plot_maps==1:
@@ -65,7 +67,8 @@ if plot_maps==1:
 #plot_timeseries(exp, exp1, domain, root, outpath, lat=52.0, lon=63.0)
 #plot_timeseries(exp, exp1, domain, root, outpath, lat=52.7, lon=41.)
 
-plot_timeseries_RSEpaper(exp1, exp2, domain, root, outpath, lat=52.745719, lon=-83.9750042)
+#plot_timeseries_RSEpaper(exp1, exp2, domain, root, outpath, lat=52.745719, lon=-83.9750042)
+
 #plot_timeseries(exp, domain, root, outpath, lat=53.0, lon=38.5)
 #plot_increments_number(exp, domain, root, outpath)
 #plot_catparams(exp, domain, root, outpath)
@@ -83,7 +86,6 @@ plot_timeseries_RSEpaper(exp1, exp2, domain, root, outpath, lat=52.745719, lon=-
 #plot_RTMparams_delta(exp1, exp2, domain, root, outpath)
 #plot_RTMparams_filled(exp, domain, root, outpath)
 #plot_RTMparams_filled_peat(exp, domain, root, outpath)
-#plot_RTMparams(exp, domain, root, outpath)
 #plot_rtm_parameters(exp, domain, root, outpath)
 #plot_increments_std(exp, domain, root, outpath)
 #plot_increments(exp, domain, root, outpath, dti)

@@ -3067,6 +3067,31 @@ def figure_double_scaling(data,lons,lats,cmin,cmax,llcrnrlat, urcrnrlat,
     plt.savefig(fname_long, dpi=f.dpi)
     plt.close()
 
+def figure_zoom(data,lons,lats,latmin,latmax,lonmin,lonmax):
+    # data: xarray or ndarray with 2D data array
+    # lons and lats: 2D arrays with lons and lats of each grid cell
+    # latmin, latmax, lonmin, lonmax: zoom boundaries
+    # Usage:
+    # [data_zoom,lons_zoom,lats_zoom,llcrnrlat_zoom, urcrnrlat_zoom, llcrnrlon_zoom,urcrnrlon_zoom] = figure_zoom(tmp_data.values,lons,lats,latmin,latmax,lonmin,lonmax)
+    cond = np.where( (lons>lonmin) & (lons<lonmax) & (lats>latmin) & (lats<latmax), 1, np.nan)
+    colind = np.all(np.isnan(cond),axis=0)==False
+    rowind = np.all(np.isnan(cond),axis=1)==False
+    try:
+        data = data.values[:,colind]
+    except:
+        data = data[:,colind]
+    data = data[rowind,:]
+    lons = lons[:,colind]
+    lons = lons[rowind,:]
+    lats = lats[:,colind]
+    lats = lats[rowind,:]
+    llcrnrlat = np.min(lats)
+    urcrnrlat = np.max(lats)
+    llcrnrlon = np.min(lons)
+    urcrnrlon = np.max(lons)
+    return data,lons,lats,llcrnrlat, urcrnrlat, llcrnrlon,urcrnrlon
+
+
 def figure_single_default(data,lons,lats,cmin,cmax,llcrnrlat, urcrnrlat,
                               llcrnrlon,urcrnrlon,outpath,exp,fname,plot_title,cmap='seismic'):
     #if plot_title.startswith('zbar'):
