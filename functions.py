@@ -1176,9 +1176,10 @@ def get_M09_ObsFcstAna(io,lon,lat,latlon=True):
     dcols = [-1,0,1,2]
     drows = [-1,0,1,2]
     cfind=False
+    [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
     for icol,dcol in enumerate(dcols):
         for icol,drow in enumerate(drows):
-            ts_obs = io.read_ts('obs_obs', col+dcol, row+drow, species=2, lonlat=False)
+            ts_obs = io.read_ts('obs_obs', np.min([col+dcol,lons.shape[1]-1]), np.min([row+drow,lons.shape[0]-1]), species=2, lonlat=False)
             if np.isnan(ts_obs.max(skipna=True))==False:
                 cfind = True
                 break
