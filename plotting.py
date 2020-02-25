@@ -3198,6 +3198,60 @@ def figure_single_default(data,lons,lats,cmin,cmax,llcrnrlat, urcrnrlat,
     plt.savefig(fname_long, dpi=f.dpi)
     plt.close()
 
+def figure_single_default_zoom(data,lons,lats,cmin,cmax,llcrnrlat, urcrnrlat,
+                              llcrnrlon,urcrnrlon,outpath,exp,fname,plot_title,cmap='seismic'):
+    #if plot_title.startswith('zbar'):
+    #    cmap = 'jet_r'
+    if cmin == None:
+        cmin = np.nanmin(data)
+    if cmax == None:
+        cmax = np.nanmax(data)
+    if cmin < 0.0 and cmap=='seismic':
+        cmax = np.max([-cmin,cmax])
+        cmin = -cmax
+    # open figure
+    # Norther peatland:
+    if np.mean(lats)>30:
+        fig_aspect_ratio = (0.1*(np.max(lons)-np.min(lons)))/(0.18*(np.max(lats)-np.min(lats)))
+        figsize = (fig_aspect_ratio+10,10)
+        parallels = np.arange(-80.0,81,5.)
+        meridians = np.arange(0.,351.,20.)
+    else:
+        figsize = (10,10)
+        parallels = np.arange(10*np.floor(np.min(lats)/10.),10*np.ceil(np.max(lats)/10.),np.ceil((np.max(lats)-np.min(lats))/4.))
+        meridians = np.arange(10*np.floor(np.min(lons)/10.),10*np.ceil(np.max(lons)/10.),np.ceil((np.max(lons)-np.min(lons))/4.))
+    fontsize = 14
+    cbrange = (cmin, cmax)
+
+    f = plt.figure(num=None, figsize=figsize, dpi=90, facecolor='w', edgecolor='k')
+    plt_img = np.ma.masked_invalid(data)
+    m = Basemap(projection='mill', llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat, llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon, resolution='h')
+    m.drawcoastlines(linewidth=1.8)
+    m.drawcountries(linewidth=0.3)
+    m.drawparallels(parallels,labels=[False,True,True,False])
+    m.drawmeridians(meridians,labels=[True,False,False,True])
+    # color bar
+    im = m.pcolormesh(lons, lats, plt_img, cmap=cmap, latlon=True)
+    im.set_clim(vmin=cbrange[0], vmax=cbrange[1])
+    #lat=53.
+    #lon=38.5
+    #x,y = m(lon, lat)
+    #m.plot(x, y, 'ko', markersize=6,mfc='none')
+    #cmap = plt.get_cmap(cmap)
+    cb = m.colorbar(im, "bottom", size="6%", pad="22%",shrink=0.5)
+    # label size
+    for t in cb.ax.get_xticklabels():
+        t.set_fontsize(fontsize)
+    for t in cb.ax.get_yticklabels():
+        t.set_fontsize(fontsize)
+    plt.title(plot_title, fontsize=fontsize)
+    #plt.tight_layout()
+    fname_long = os.path.join(outpath, fname+'.png')
+    plt.savefig(fname_long, dpi=f.dpi)
+    plt.close()
+
+
+
 def plot_innovation_variance():
 
     ds = xr.open_dataset(r"D:\work\LDAS\2018-02_scaling\_new\diagnostics\filter_diagnostics.nc")

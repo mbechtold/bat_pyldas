@@ -8,10 +8,17 @@ if platform.system() == 'Linux':
 from bat_pyldas.plotting import *
 from bat_pyldas.functions import *
 import getpass
+import numpy as np
+import logging
+import pandas as pd
+from scipy.stats import pearsonr
+from netCDF4 import Dataset
+from pyldas.interface import LDAS_io
+
 
 root='/staging/leuven/stg_00024/OUTPUT/michelb/TROPICS'
 outpath = '/staging/leuven/stg_00024/OUTPUT/michelb/FIG_tmp/TROPICS/sm_sensitivity_test'
-exp='INDONESIA_M09_PEATCLSMTD_v01_SMOSfw'
+exp='INDONESIA_M09_PEATCLSMTN_v01_SMOSfw'
 domain='SMAP_EASEv2_M09'
 
 lsm = LDAS_io('inst', exp=exp, domain=domain, root=root)
@@ -22,11 +29,13 @@ lon=138.6
 lat=-5.1
 lon = 144.7
 lat = -6.8
-lon = 113.74
-lat = -2.68
+
+#sebangau forest
+lon = 114.2
+lat = -3
 # Drained Indonesia
-lon=100.3
-lat=1.8
+#lon=103
+#lat=-0.75
 
 #[col, row] = lsm.grid.lonlat2colrow(lon, lat, domain=True)
 [col, row] = get_M09_ObsFcstAna(ObsFcstAna,lon,lat)
@@ -64,6 +73,23 @@ df = pd.concat((ts_sfmc,ts_tp1,ts_lai,ts_obsobs_ha,ts_obsobs_hd,ts_obsobs_va,ts_
                 ts_emissivity_ha,ts_emissivity_hd,ts_emissivity_va,ts_emissivity_vd,
                 ts_mpdi),axis=1)
 
+fig = plt.figure(figsize=(22,7))
+fontsize = 18
+ax1 = plt.subplot(211)
+df['sfmc'].plot(ax=ax1,style=['g.'], markersize=5, fontsize=fontsize+12, linewidth=2)
+plt.ylabel('SM [vol.]', fontsize=fontsize +13)
+plt.xlabel(" ")
+plt.yticks(ticks=[0.1, 0.3, 0.5, 0.7, 0.9], labels=['0.1', '0.3', '0.5', '0.7', '0.9'])
+ax2 = plt.subplot(212)
+df['emissivity_hd'].plot(ax=ax2,style=['gx'], markersize=6,fontsize=fontsize+12, linewidth=2)
+plt.ylabel('e (H-pol) [-]', fontsize=fontsize +13)
+plt.xlabel(" ")
+plt.yticks(ticks=[0.74, 0.79, 0.84, 0.89, 0.94], labels=['0.74', '0.79', '0.84', '0.89', '0.94'])
+figpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/IN/Natural/DA_sensitivity/'
+fname = 'Timeseries_DA_' +figpath[52:59]
+fname_long = os.path.join(figpath + fname + '.png')
+plt.savefig(fname_long, dpi=300)
+
 fig = plt.figure(figsize=(19,7))
 fontsize = 12
 ax1 = plt.subplot(511)
@@ -82,8 +108,6 @@ ax5 = plt.subplot(515)
 df['lai'].plot(ax=ax5,style=['x'], fontsize=fontsize, linewidth=2)
 plt.ylabel('lai [m2/m2]')
 
-plt.close(fig)
-
 
 fig = plt.figure(figsize=(10,10))
 ax1 = plt.subplot(221)
@@ -96,4 +120,3 @@ ax3 = plt.subplot(223)
 plt.plot(df['mpdi'],df['sfmc'],'.')
 plt.xlabel('mpdi')
 plt.show()
-

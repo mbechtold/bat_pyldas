@@ -48,7 +48,7 @@ def filter_diagnostics_evaluation():
     # read in the data (LSM and Observation)
     root = '/staging/leuven/stg_00024/OUTPUT/michelb/TROPICS'
     outpath = '/staging/leuven/stg_00024/OUTPUT/michelb/FIG_tmp/TROPICS/sm_sensitivity_test'
-    exp = 'INDONESIA_M09_PEATCLSMTD_v01_SMOSfw'
+    exp = 'INDONESIA_M09_PEATCLSMTN_v01_SMOSfw'
     domain = 'SMAP_EASEv2_M09'
 
     lsm = LDAS_io('inst', exp=exp, domain=domain, root=root)
@@ -108,22 +108,22 @@ def filter_diagnostics_evaluation():
     for i_spc,spc in enumerate(species):
         data = np.ma.masked_invalid(ds['pearsonR'][:,:,i_spc])
         tmp_data = obs_M09_to_M36(data)
-        cmin=-0.7
-        cmax=-0.2
         fname = 'R_eSM_sp'+str(i_spc)
-        figpath='/data/leuven/324/vsc32460/FIG/in_situ_comparison/IN/Drained/DA_sensitivity'
+        figpath='/data/leuven/324/vsc32460/FIG/in_situ_comparison/IN/Natural/DA_sensitivity'
         #drained zoom
-        latmin = -2
-        latmax = 2
-        lonmin = 102
-        lonmax = 105
+        latmin = -1.5
+        latmax = 0.5
+        lonmin = 102.2
+        lonmax = 104.2
         #natural zoom
-        #latmin = -3.8
-        #latmax = -1.2
-        #lonmin = 112.5
-        #lonmax = 115
+        latmin = -3.9
+        latmax = -1.9
+        lonmin = 113.1
+        lonmax = 115.1
+        cmin=-0.85
+        cmax=-0.25
         [data_zoom, lons_zoom, lats_zoom, llcrnrlat_zoom, urcrnrlat_zoom, llcrnrlon_zoom, urcrnrlon_zoom] =figure_zoom(tmp_data, lons, lats, latmin, latmax, lonmin, lonmax)
-        figure_single_default(data=data_zoom, lons=lons_zoom, lats=lats_zoom, cmin=cmin, cmax=cmax, llcrnrlat=llcrnrlat_zoom, urcrnrlat=urcrnrlat_zoom,
+        figure_single_default_zoom(data=data_zoom, lons=lons_zoom, lats=lats_zoom, cmin=cmin, cmax=cmax, llcrnrlat=llcrnrlat_zoom, urcrnrlat=urcrnrlat_zoom,
                                   llcrnrlon=llcrnrlon_zoom, urcrnrlon=urcrnrlon_zoom, outpath=figpath, exp=exp, fname=fname + '_zoom_' +figpath[52:59], plot_title='R (-), ' + fname + ' ,zoom ,' + figpath[52:59], cmap='jet')
 
     ds.close()
