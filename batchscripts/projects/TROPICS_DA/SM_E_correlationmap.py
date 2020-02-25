@@ -82,32 +82,37 @@ def filter_diagnostics_evaluation():
         for col in range(poros.shape[1]):
             if poros[row,col]>0.6:
                 for i_spc,spc in enumerate(species):
-                    if np.isnan(np.nanmean(ObsFcstAna.timeseries['obs_obs'][:,i_spc,row,col]))==False:
+                    [col_obs, row_obs] = get_M09_ObsFcstAna(io,lon,lat)
+                    ts_sfmc = lsm.read_ts('sfmc', col, row, lonlat=False)
+                    ts_tp1 = lsm.read_ts('tp1', col, row, lonlat=False)
+                    ts_obsobs = ObsFcstAna.read_ts('obs_obs', col_obs, row_obs, species=i_spc+1, lonlat=False)
+                    ts_obsobs.name = 'obsobs'
 
-                        ts_sfmc = lsm.read_ts('sfmc', col, row, lonlat=False)
-                        ts_tp1 = lsm.read_ts('tp1', col, row, lonlat=False)
-                        ts_obsobs = ObsFcstAna.read_ts('obs_obs', col, row, species=i_spc+1, lonlat=False)
-                        ts_obsobs.name = 'obsobs'
+                    df = pd.concat((ts_sfmc,ts_tp1,ts_obsobs),axis=1)
+                    ts_emissivity = df['obsobs']/df['tp1']
 
-                        df = pd.concat((ts_sfmc,ts_tp1,ts_obsobs),axis=1)
-                        ts_emissivity = df['obsobs']/df['tp1']
+                    df = pd.concat((ts_sfmc,ts_emissivity),axis=1)
+                    if not np.isnan(df.corr().values[0,1]):
+                        ds.variables['pearsonR'][row,col,i_spc] = df.corr().values[0,1]
 
-                        df = pd.concat((ts_sfmc,ts_emissivity),axis=1)
-                        if not np.isnan(df.corr().values[0,1]):
-                            ds.variables['pearsonR'][row,col,i_spc] = df.corr().values[0,1]
-
-                        #pearsonr([0]['obs_obs'][i_spc] - [0]['obs_fcst'][i_spc]).mean(dim='time').values
-                        #tmp = [0]['obs_obs'][i_spc].values
-                        #np.place(tmp, ~np.isnan(tmp), 1.)
-                        #np.place(tmp, np.isnan(tmp), 0.)
-                        #ds['pearsonR'][:, :, i_spc] = tmp.sum(axis=2)
+                    #pearsonr([0]['obs_obs'][i_spc] - [0]['obs_fcst'][i_spc]).mean(dim='time').values
+                    #tmp = [0]['obs_obs'][i_spc].values
+                    #np.place(tmp, ~np.isnan(tmp), 1.)
+                    #np.place(tmp, np.isnan(tmp), 0.)
+                    #ds['pearsonR'][:, :, i_spc] = tmp.sum(axis=2)
 
     #plt.imshow(-1.0*ds['pearsonR'][:,:,2])
     #data = np.full(lons.shape, np.nan)
     #data[tc.j_indg.values, tc.i_indg.values] =
     for i_spc,spc in enumerate(species):
         data = np.ma.masked_invalid(ds['pearsonR'][:,:,i_spc])
+<<<<<<< HEAD
         tmp_data = obs_M09_to_M36(data)
+=======
+        #tmp_data = obs_M09_to_M36(data)
+        cmin=-0.7
+        cmax=-0.2
+>>>>>>> 3e91af0d19d89ae06ca1ff5a539f07c5288dd2aa
         fname = 'R_eSM_sp'+str(i_spc)
         figpath='/data/leuven/324/vsc32460/FIG/in_situ_comparison/IN/Natural/DA_sensitivity'
         #drained zoom
@@ -116,6 +121,7 @@ def filter_diagnostics_evaluation():
         lonmin = 102.2
         lonmax = 104.2
         #natural zoom
+<<<<<<< HEAD
         latmin = -3.9
         latmax = -1.9
         lonmin = 113.1
@@ -124,6 +130,14 @@ def filter_diagnostics_evaluation():
         cmax=-0.25
         [data_zoom, lons_zoom, lats_zoom, llcrnrlat_zoom, urcrnrlat_zoom, llcrnrlon_zoom, urcrnrlon_zoom] =figure_zoom(tmp_data, lons, lats, latmin, latmax, lonmin, lonmax)
         figure_single_default_zoom(data=data_zoom, lons=lons_zoom, lats=lats_zoom, cmin=cmin, cmax=cmax, llcrnrlat=llcrnrlat_zoom, urcrnrlat=urcrnrlat_zoom,
+=======
+        #latmin = -3.8
+        #latmax = -1.2
+        #lonmin = 112.5
+        #lonmax = 115
+        [data_zoom, lons_zoom, lats_zoom, llcrnrlat_zoom, urcrnrlat_zoom, llcrnrlon_zoom, urcrnrlon_zoom] =figure_zoom(data, lons, lats, latmin, latmax, lonmin, lonmax)
+        figure_single_default(data=data_zoom, lons=lons_zoom, lats=lats_zoom, cmin=cmin, cmax=cmax, llcrnrlat=llcrnrlat_zoom, urcrnrlat=urcrnrlat_zoom,
+>>>>>>> 3e91af0d19d89ae06ca1ff5a539f07c5288dd2aa
                                   llcrnrlon=llcrnrlon_zoom, urcrnrlon=urcrnrlon_zoom, outpath=figpath, exp=exp, fname=fname + '_zoom_' +figpath[52:59], plot_title='R (-), ' + fname + ' ,zoom ,' + figpath[52:59], cmap='jet')
 
     ds.close()
