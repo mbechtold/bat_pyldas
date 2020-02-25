@@ -1184,6 +1184,9 @@ def get_M09_ObsFcstAna(io,lon,lat,latlon=True):
                 break
         if cfind==True:
             break
+    if cfind==False:
+        dcol = 0
+        drow = 0
     col = col+dcol
     row = row+drow
     return col,row
