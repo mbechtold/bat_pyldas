@@ -3113,8 +3113,8 @@ def figure_single_default(data,lons,lats,cmin,cmax,llcrnrlat, urcrnrlat,
         meridians = np.arange(0.,351.,20.)
     else:
         figsize = (10,10)
-        parallels = np.arange(np.floor(np.min(lats)),np.ceil(np.max(lats)),np.ceil((np.max(lats)-np.min(lats))/4.))
-        meridians = np.arange(np.floor(np.min(lons)),np.ceil(np.max(lons)),np.ceil((np.max(lons)-np.min(lons))/4.))
+        parallels = np.arange(10*np.floor(np.min(lats)/10.),10*np.ceil(np.max(lats)/10.),np.ceil((np.max(lats)-np.min(lats))/4.))
+        meridians = np.arange(10*np.floor(np.min(lons)/10.),10*np.ceil(np.max(lons)/10.),np.ceil((np.max(lons)-np.min(lons))/4.))
     fontsize = 14
     cbrange = (cmin, cmax)
 
