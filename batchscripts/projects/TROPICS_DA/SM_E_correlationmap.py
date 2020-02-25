@@ -82,7 +82,7 @@ def filter_diagnostics_evaluation():
         for col in range(poros.shape[1]):
             if poros[row,col]>0.6:
                 for i_spc,spc in enumerate(species):
-                    [col_obs, row_obs] = get_M09_ObsFcstAna(io,lon,lat)
+                    [col_obs, row_obs] = get_M09_ObsFcstAna(ObsFcstAna,col,row,latlon=False)
                     ts_sfmc = lsm.read_ts('sfmc', col, row, lonlat=False)
                     ts_tp1 = lsm.read_ts('tp1', col, row, lonlat=False)
                     ts_obsobs = ObsFcstAna.read_ts('obs_obs', col_obs, row_obs, species=i_spc+1, lonlat=False)
