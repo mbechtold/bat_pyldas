@@ -1165,21 +1165,28 @@ def ensstd_stats(exp, domain, root, outputpath, stat):
     ds.close()
 
 
-def get_M09_ObsFcstAna(io,lon,lat):
+def get_M09_ObsFcstAna(io,lon,lat,latlon=True):
     # get M09 row col with data from 4x4 square
-    col, row = io.grid.lonlat2colrow(lon, lat, domain=True)
+    if latlon==True:
+        col, row = io.grid.lonlat2colrow(lon, lat, domain=True)
+    else:
+        col = lon
+        row = lat
     # TODO: check whether this is the right corner of the 4 possible M09 grid cells
     dcols = [-1,0,1,2]
     drows = [-1,0,1,2]
     cfind=False
     for icol,dcol in enumerate(dcols):
         for icol,drow in enumerate(drows):
-            ts_obs = io.read_ts('obs_obs', col+dcol, row+drow, species=2, lonlat=False)
+            ts_obs = io.read_ts('obs_obs', np.min([col+dcol,io.images['lon'].size-1]), np.min([row+drow,io.images['lat'].size-1]), species=2, lonlat=False)
             if np.isnan(ts_obs.max(skipna=True))==False:
                 cfind = True
                 break
         if cfind==True:
             break
+    if cfind==False:
+        dcol = 0
+        drow = 0
     col = col+dcol
     row = row+drow
     return col,row
