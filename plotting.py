@@ -130,12 +130,12 @@ def plot_catparams(exp, domain, root, outpath):
 
 def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, exp, outpath):
 
-    # Initiate dataframe to store metrics in.
+    # Initiate dataframe to store metrics in of wtd
     INDEX = wtd_obs.columns
     COL = ['bias (m)', 'ubRMSD (m)', 'Pearson_R (-)', 'RMSD (m)','abs_bias (m)']
     df_metrics = pd.DataFrame(index=INDEX, columns=COL,dtype=float)
 
-    # Initiate dataframe to store metrics in.
+    # Initiate dataframe to store metrics in of precipitation
     INDEX = precip_obs.columns
     COL = ['bias_P (m)', 'ubRMSD_P (m)', 'Pearson_R_P (-)', 'RMSD_P (m)','abs_bias_P (m)']
     df_metrics_P = pd.DataFrame(index=INDEX, columns=COL,dtype=float)
@@ -171,7 +171,7 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, e
         df_metrics.loc[site]['abs_bias (m)'] = abs_bias_site[0]
 
         if (-10) in set(df_tmp_precip['data_obs']):
-            continue
+            df_tmp_precip=df_tmp_precip
         else:
             bias_site_P = metrics.bias(df_tmp2_precip)  # Bias = bias_site[0]
             ubRMSD_site_P = metrics.ubRMSD(df_tmp2_precip)  # ubRMSD = ubRMSD_site[0]
@@ -206,9 +206,21 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, e
         plt.figure(figsize=(16, 8.5))
         fontsize = 12
 
+        #define color based on where it is stored/which model run it uses
+        if '/Drained' in outpath:
+            color=['m','#1f77b4']
+        elif '/Natural' in outpath:
+            color=['g','#1f77b4']
+        elif '/Northern/' in outpath:
+            color = ['o', '#1f77b4']
+        elif '/CLSM/' in outpath:
+            color = ['o', '#1f77b4']
+        else:
+            color=['#1f77b4','#1f77b4']
+
         ax1 = plt.subplot2grid((3,3), (0,0), rowspan=1, colspan=3, fig=None)
         df_tmp_wtd =df_tmp_wtd[['data_mod','data_obs']]
-        df_tmp_wtd.plot(ax=ax1, fontsize=fontsize, style=['-','.'], color=['r','#1f77b4'], linewidth=2, markersize=4.5, xlim=Xlim_wtd)
+        df_tmp_wtd.plot(ax=ax1, fontsize=fontsize, style=['-','.'], color=color, linewidth=2, markersize=4.5, xlim=Xlim_wtd)
         plt.ylabel('zbar [m]')
 
         Title = site + '\n' + ' bias = ' + str(bias_site[0]) + ', ubRMSD = ' + str(ubRMSD_site[0]) + ', Pearson_R = ' + str(pearson_R_site[0]) + ', RMSD = ' + str(RMSD_site) + ' abs_bias = ' + str(abs_bias_site[0])
@@ -216,18 +228,18 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, e
 
         ax2 = plt.subplot2grid((3,3), (1,0), rowspan=1, colspan=3, fig=None)
         df_zscore = df_zscore[['data_mod', 'data_obs']]
-        df_zscore.plot(ax=ax2, fontsize=fontsize, style=['-','-'], color=['r','#1f77b4'], linewidth=2, xlim=Xlim_wtd)
+        df_zscore.plot(ax=ax2, fontsize=fontsize, style=['-','-'], color=color, linewidth=2, xlim=Xlim_wtd)
         plt.ylabel('z-score')
 
         if (-10) in set(df_tmp_precip['data_obs']):
             ax3 = plt.subplot2grid((3, 3), (2, 0), rowspan=1, colspan=3, fig=None)
             df_tmp_precip = df_tmp_precip[['data_mod', 'data_obs']]
-            df_tmp_precip.plot(ax=ax3, fontsize=fontsize, style=['-', '.'], color=['r', '#1f77b4'], linewidth=2, markersize=4.5, xlim=Xlim_wtd)
+            df_tmp_precip.plot(ax=ax3, fontsize=fontsize, style=['-', '.'], color=color, linewidth=2, markersize=4.5, xlim=Xlim_wtd)
             plt.ylabel('precipitation [mm/d]')
         else:
             ax3 = plt.subplot2grid((3,3), (2,0), rowspan=1, colspan=2, fig=None)
             df_tmp_precip = df_tmp_precip[['data_mod', 'data_obs']]
-            df_tmp_precip.plot(ax=ax3,fontsize=fontsize, style=['-','.'], color=['r','#1f77b4'], linewidth=2, markersize=4.5 ,xlim=Xlim_wtd)
+            df_tmp_precip.plot(ax=ax3,fontsize=fontsize, style=['-','.'], color=color, linewidth=2, markersize=4.5 ,xlim=Xlim_wtd)
             plt.ylabel('precipitation [mm/d]')
 
             # Sebastian added #to plot the obs vs meas rainfall and 1/1line
@@ -243,7 +255,7 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, e
             ax4 = plt.subplot2grid((3,3), (2,2), rowspan=1, colspan=2, fig=None)
             df_tmp_precip_sum = df_tmp_precip.dropna(axis=0,how='any')
             df_tmp_precip_sum = df_tmp_precip_sum[['data_mod', 'data_obs']].cumsum(skipna=True)
-            df_tmp_precip_sum.plot(ax=ax4,fontsize=fontsize, style=['-','-'], color=['r','#1f77b4'], linewidth=2, markersize=0.5 ,xlim=Xlim_wtd)
+            df_tmp_precip_sum.plot(ax=ax4,fontsize=fontsize, style=['-','-'], color=color, linewidth=2, markersize=0.5 ,xlim=Xlim_wtd)
             plt.ylabel('Cumulative precipitation [mm/d]')
 
 
@@ -308,7 +320,7 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, e
         df_allWTDP1 = df_allWTDP.copy()
         df_allWTDP1.insert(0, 'Group', ['B', 'B', 'B', 'B', 'A', 'B', 'B', 'A', 'A', 'A', 'A'], True)
         df_allWTDP1=df_allWTDP1.drop(['abs_bias_P (m)'],axis=1)
-        plt.figure(figsize=(7,6))
+        plt.figure(figsize=(5.5,5))
         ax=sns.boxplot(x="Group", y="Pearson_R (-)", data=df_allWTDP1, palette=["#e74c3c", "#2ecc71"], width= 0.7)
         fname = 'grouped_boxplot1'
         fname_long = os.path.join(outpath + '/comparison_insitu_data/' + fname + '.png')
@@ -316,8 +328,8 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, e
         #plt.title(Title, fontsize=9.5)
         #handles, _ = ax.get_legend_handles_labels()
         #ax.legend.remove()
-        ax.set(xlabel=None, xticklabels=["High mean absolute \nprecipitation error", "Low mean absolute \nprecipitation error"])
-        plt.ylabel("R (groundwater level)", fontsize=20)
+        ax.set(xlabel=None, xticklabels=["High\n                          mean absolute error in precipitation", "Low \n"])
+        plt.ylabel("R (water table depth)", fontsize=20)
         plt.xlabel("")
         plt.tick_params('both', labelsize=18.5)
         plt.savefig(fname_long, dpi=150, bbox_inches='tight')
