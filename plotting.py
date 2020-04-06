@@ -128,6 +128,270 @@ def plot_catparams(exp, domain, root, outpath):
         figure_single_default(data=data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
                               llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title=param)
 
+def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_mod, rn_obs, rn_mod, sh_obs, sh_mod, le_obs, le_mod, zbar_mod, eveg_mod, esoi_mod, eint_mod, wtd_obs, exp, outpath):
+
+    INDEX = et_obs.columns
+    COL = ['bias (m)', 'ubRMSD (m)', 'Pearson_R (-)', 'RMSD (m)','abs_bias (m)']
+    df_metrics = pd.DataFrame(index=INDEX, columns=COL,dtype=float)
+
+    for c,site in enumerate(et_obs.columns):
+
+        df_tmp_et = pd.concat((et_obs[site],et_mod[site]),axis=1)
+        df_tmp_et.columns = ['data_obs','data_mod']
+
+        #this is done again to use in the skill metrics calculation, else transformations occur in original data
+        df_tmp2_et = pd.concat((et_obs[site],et_mod[site]),axis=1)
+        df_tmp2_et.columns = ['data_obs','data_mod']
+
+        df_tmp_ee = pd.concat((ee_obs[site],ee_mod[site]),axis=1)  #error hier, verder werken morgen
+        df_tmp_ee.columns = ['data_obs','data_mod']
+
+        df_tmp_br = pd.concat((br_obs[site],br_mod[site]),axis=1)
+        df_tmp_br.columns = ['data_obs','data_mod']
+
+        df_tmp_rn = pd.concat((rn_obs[site],rn_mod[site]),axis=1)
+        df_tmp_rn.columns = ['data_obs','data_mod']
+
+        df_tmp_sh = pd.concat((sh_obs[site],sh_mod[site]),axis=1)
+        df_tmp_sh.columns = ['data_obs','data_mod']
+
+        df_tmp_le = pd.concat((le_obs[site],le_mod[site]),axis=1)
+        df_tmp_le.columns = ['data_obs','data_mod']
+
+        """metric calculation overall"""
+        #metric calculation with back-up df
+        bias_site = metrics.bias(df_tmp2_et) # Bias = bias_site[0]
+        ubRMSD_site = metrics.ubRMSD(df_tmp2_et) # ubRMSD = ubRMSD_site[0]
+        pearson_R_site = metrics.Pearson_R(df_tmp2_et) # Pearson_R = pearson_R_site[0]
+        RMSD_site = (ubRMSD_site[0]**2 + bias_site[0]**2)**0.5
+        abs_bias_site = bias_site.abs()
+        #abs_bias_site_value = abs(abs_bias_site)
+        #abs_bias_site = abs_bias_site('bias').update(abs_bias_site_value('bias'))
+
+        # Save metrics in df_metrics.
+        df_metrics.loc[site]['bias (mm/day)'] = bias_site[0]
+        df_metrics.loc[site]['ubRMSD (mm/day)'] = ubRMSD_site[0]
+        df_metrics.loc[site]['Pearson_R (-)'] = pearson_R_site[0]
+        df_metrics.loc[site]['RMSD (mm/day)'] = RMSD_site
+        df_metrics.loc[site]['abs_bias (mm/day)'] = abs_bias_site[0]
+
+
+        '''plotting et, zscore, ee, br and seperate plot for overall skillmetrics'''
+        # Create x-axis matching in situ data, for plotting time series
+        x_start_et = df_tmp2_et.index[0]  # Start a-axis with the first day with an observed wtd value.
+        x_end_et = df_tmp2_et.index[-1]  # End a-axis with the last day with an observed wtd value.
+        Xlim_wtd = [x_start_et, x_end_et]
+
+        #xlim to check only the first year of data
+        #Xlim_wtd = [df_tmp2_et.index[365+365], df_tmp2_et.index[365+365+364]]
+
+        # Calculate z-score for the time series.
+        df_zscore = df_tmp2_et.apply(zscore)
+
+        # define color based on where it is stored/which model run it uses
+        if '/Drained' in outpath:
+            color = ['m', '#1f77b4']
+        elif '/Natural' in outpath:
+            color = ['g', '#1f77b4']
+            #to make a good color distinction
+            #color = ['g', 'r']
+        elif '/Northern/' in outpath:
+            color = ['o', '#1f77b4']
+        elif '/CLSM/' in outpath:
+            color = ['o', '#1f77b4']
+        else:
+            color = ['#1f77b4', '#1f77b4']
+
+
+#fig1
+        fig1 = plt.figure(figsize=(16, 8.5))
+        fontsize = 12
+
+        ax1 = plt.subplot2grid((2, 1), (0, 0), rowspan=1, fig=None)
+        df_tmp_et = df_tmp_et[['data_mod', 'data_obs']]
+        df_tmp_et.plot(ax=ax1, fontsize=fontsize, style=['-', '.'], color=color, linewidth=0.9, markersize=3.8,
+                        xlim=Xlim_wtd)
+        plt.ylabel('ET (mm/day)')
+
+        Title = site + '\n' + ' bias = ' + str(bias_site[0]) + ' (mm/day), ubRMSD = ' + str(
+            ubRMSD_site[0]) + '(mm/day), Pearson_R = ' + str(pearson_R_site[0]) + '(-), RMSD = ' + str(
+            RMSD_site) + '(mm/day), abs_bias = ' + str(abs_bias_site[0]) + ' (mm/day)'
+        plt.title(Title)
+
+        ax2 = plt.subplot2grid((2, 1), (1, 0), rowspan=1, fig=None)
+        df_zscore = df_zscore[['data_mod', 'data_obs']]
+        df_zscore.plot(ax=ax2, fontsize=fontsize, style=['-', '-'], color=color, linewidth=0.9, xlim=Xlim_wtd)
+        plt.ylabel('z-score')
+
+        plt.tight_layout()
+        fname = site
+        fname_long = os.path.join(outpath + '/et' + fname + '.png')
+        plt.savefig(fname_long, dpi=150)
+        plt.close()
+
+#fig2
+        fig2 = plt.figure(figsize=(16, 8.5))
+        fontsize = 12
+
+        ax3 = plt.subplot2grid((3, 1), (0, 0), rowspan=1, fig=None)
+        df_tmp_ee = df_tmp_ee[['data_mod', 'data_obs']]
+        df_tmp_ee.plot(ax=ax3, fontsize=fontsize, style=['-', '.'], color=color, linewidth=0.9, markersize=3.8,
+                        xlim=Xlim_wtd)
+        plt.ylabel('Evapotranspiration Efficiency (-)')
+
+        ax4 = plt.subplot2grid((3, 1), (1, 0), rowspan=1, fig=None)
+        df_tmp_le = df_tmp_le[['data_mod', 'data_obs']]
+        df_tmp_le.plot(ax=ax4, fontsize=fontsize, style=['-', '.'], color=color, linewidth=0.9, markersize=3.8,
+                        xlim=Xlim_wtd)
+        plt.ylabel('Latent heat (W/m$^{2}$)')
+
+        ax5 = plt.subplot2grid((3, 1), (2, 0), rowspan=1, fig=None)
+        df_tmp_rn = df_tmp_rn[['data_mod', 'data_obs']]
+        df_tmp_rn.plot(ax=ax5, fontsize=fontsize, style=['-', '-'], color=color, linewidth=0.9, markersize=3.8,
+                        xlim=Xlim_wtd)
+        plt.ylabel('Rn (W/m$^{2}$)')
+
+        plt.tight_layout()
+        fname = site
+        fname_long = os.path.join(outpath + '/ee' + fname + '.png')
+        plt.savefig(fname_long, dpi=150)
+        plt.close()
+
+# fig3
+        fig3 = plt.figure(figsize=(16, 8.5))
+        fontsize = 12
+
+        ax6 = plt.subplot2grid((3, 1), (0, 0), rowspan=1, fig=None)
+        df_tmp_br = df_tmp_br[['data_mod', 'data_obs']]
+        df_tmp_br.plot(ax=ax6, fontsize=fontsize, style=['-', '.'], color=color, linewidth=0.9, markersize=3.8,
+                       xlim=Xlim_wtd, ylim=[-0.2, 1.5])
+        plt.ylabel('Bowen Ratio (-)')
+
+        ax8 = plt.subplot2grid((3, 1), (2, 0), rowspan=1, fig=None)
+        df_tmp_le = df_tmp_le[['data_mod', 'data_obs']]
+        df_tmp_le.plot(ax=ax8, fontsize=fontsize, style=['-', '.'], color=color, linewidth=0.9, markersize=3.8,
+                       xlim=Xlim_wtd)
+        plt.ylabel('Latent heat (W/m$^{2}$)')
+
+        ax7 = plt.subplot2grid((3, 1), (1, 0), rowspan=1, fig=None)
+        df_tmp_sh = df_tmp_sh[['data_mod', 'data_obs']]
+        df_tmp_sh.plot(ax=ax7, fontsize=fontsize, style=['-', '.'], color=color, linewidth=0.9, markersize=3.8,
+                       xlim=Xlim_wtd)
+        plt.ylabel('Sensible heat (W/m$^{2}$)')
+
+        plt.tight_layout()
+        fname = site
+        fname_long = os.path.join(outpath + '/br' + fname + '.png')
+        plt.savefig(fname_long, dpi=150)
+        plt.close()
+
+# fig4
+        fig4 = plt.figure(figsize=(20, 7.5))
+        fontsize = 12
+
+        #xlim to check only one specific year or period
+        #Xlim_wtd = [df_tmp2_et.index[365], df_tmp2_et.index[365+365+365]]
+
+        ax1 = plt.subplot2grid((2, 2), (0, 0), rowspan=1, colspan= 1, fig=None)
+        df_tmp_ratios = df_tmp_ee.merge(df_tmp_br, left_index=True, right_index=True)
+        df_tmp_ratios.plot(ax=ax1, y= ['data_mod_x','data_mod_y'], fontsize=fontsize, style=['-','-'], color=['darkorange','darkmagenta'], linewidth=0.9,
+                        xlim=Xlim_wtd, label=['Evapotranspiration Efficiency ','Bowen Ratio'])
+        plt.ylabel('(-)')
+
+        ax2 = plt.subplot2grid((2, 2), (1, 0), rowspan=1, colspan=1, fig=None)
+        df_tmp_hf = df_tmp_le.merge(df_tmp_sh, left_index=True, right_index=True)
+        df_tmp_hf = df_tmp_hf.merge(df_tmp_rn, left_index=True, right_index=True)
+        df_tmp_hf.plot(ax=ax2, y=['data_mod','data_mod_x','data_mod_y'], fontsize=fontsize, style=['-', '-', '-'], color=['gold', 'crimson', 'mediumblue'], linewidth=0.9,
+                       xlim=Xlim_wtd, label=['Net Radiation', 'Latent Heat', 'Sensible Heat'])
+        plt.ylabel('(W/m$^{2}$)')
+        plt.legend()
+
+        ax3 = plt.subplot2grid((2, 2), (0, 1), rowspan=1, colspan= 1, fig=None)
+        df_tmp_ratios.plot(ax=ax3, y= ['data_obs_x','data_obs_y'], fontsize=fontsize, style=['-','-'], color=['darkorange','darkmagenta'], linewidth=0.9,
+                        xlim=Xlim_wtd, label=['Evapotranspiration Efficiency ','Bowen Ratio'])
+        plt.ylabel('Evapotranspiration Efficiency (-)')
+
+        ax4 = plt.subplot2grid((2, 2), (1, 1), rowspan=1, colspan=1, fig=None)
+        df_tmp_hf = df_tmp_le.merge(df_tmp_sh, left_index=True, right_index=True)
+        df_tmp_hf = df_tmp_hf.merge(df_tmp_rn, left_index=True, right_index=True)
+        df_tmp_hf.plot(ax=ax4, y=['data_obs','data_obs_x','data_obs_y'], fontsize=fontsize, style=['-', '-', '-'], color=['gold', 'crimson', 'mediumblue'], linewidth=0.9,
+                       xlim=Xlim_wtd, label=['Net Radiation', 'Latent Heat', 'Sensible Heat'])
+        plt.ylabel('(W/m$^{2}$)')
+        plt.legend()
+
+        plt.tight_layout()
+        fname = site
+        fname_long = os.path.join(outpath + '/heat_fluxes' + fname + '.png')
+        plt.savefig(fname_long, dpi=150)
+        plt.close()
+
+# fig5
+        fig5 = plt.figure(figsize=(26,12))
+        fontsize = 12
+
+        df_dataframe = pd.concat((et_mod[site], eveg_mod[site], esoi_mod[site], eint_mod[site], zbar_mod[site], et_obs[site], wtd_obs[site]), axis=1, join='inner')
+        df_dataframe.columns = ['evap','eveg', 'esoi', 'eint', 'zbar', 'et_obs','wtd_obs']
+
+        ax0 = plt.subplot2grid((2, 3), (0, 0), rowspan=1, colspan=1, fig=None)
+        df_dataframe.plot(ax=ax0, y= 'et_obs', x='wtd_obs',fontsize=fontsize, style=['.'], color=['#1f77b4'], markersize= 3.5)
+        plt.ylabel('In situ evapotranspiration (mm/day)', fontsize=22)
+        plt.xlabel('In situ water table depth (m)', fontsize=22)
+        plt.legend(fontsize=20)
+        plt.xlim((-1.5,0.1))
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        ax10 = plt.subplot2grid((2, 3), (1, 0), rowspan=1, colspan=1, fig=None)
+        df_dataframe.plot(ax=ax10, y= 'et_obs', x='zbar',fontsize=fontsize, style=['.'], color=['r'], markersize= 3.5)
+        plt.ylabel('In situ evapotranspiration (mm/day)', fontsize=22)
+        plt.xlabel('Water table depth (m)', fontsize=22)
+        plt.legend(fontsize=20)
+        plt.xlim((-1.5,0.1))
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        ax1 = plt.subplot2grid((2, 3), (0, 1), rowspan=1, colspan=1, fig=None)
+        df_dataframe.plot(ax=ax1, y= 'evap', x='zbar',fontsize=fontsize, style=['.'], color=['green'], markersize= 3.5)
+        plt.ylabel('Evapotranspiration (mm/day)', fontsize=22)
+        plt.xlabel('Water table depth (m)', fontsize=22)
+        plt.legend(fontsize=20)
+        plt.xlim((-1.5,0.1))
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        ax2 = plt.subplot2grid((2, 3), (1, 1), rowspan=1, colspan=1, fig=None)
+        df_dataframe.plot(ax=ax2, y= 'eveg', x='zbar',fontsize=fontsize, style=['.'], color=['green'], markersize= 3.5)
+        plt.ylabel('Plant Transpiration (mm/day)', fontsize=22)
+        plt.xlabel('Water table depth (m)', fontsize=22)
+        plt.legend(fontsize=20)
+        plt.xlim((-1.5,0.1))
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        ax3 = plt.subplot2grid((2, 3), (0, 2), rowspan=1, colspan=1, fig=None)
+        df_dataframe.plot(ax=ax3, y= 'esoi', x='zbar', fontsize=fontsize, style=['.'], color=['green'], markersize= 3.5)
+        plt.ylabel('Soil Evaporation (mm/day)', fontsize=22)
+        plt.xlabel('Water table depth (m)', fontsize=22)
+        plt.legend(fontsize=20)
+        plt.xlim((-1.5,0.1))
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        ax4 = plt.subplot2grid((2, 3), (1, 2), rowspan=1, colspan=1, fig=None)
+        df_dataframe.plot(ax=ax4, y= 'eint', x='zbar', fontsize=fontsize, style=['.'], color=['green'], markersize= 3.5)
+        plt.ylabel('Interception Evaporation (mm/day)', fontsize=22)
+        plt.xlabel('Water table depth (m)', fontsize=22)
+        plt.legend(fontsize=20)
+        plt.xlim((-1.5,0.1))
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        plt.tight_layout()
+        fname = site
+        fname_long = os.path.join(outpath + '/ETcomponents_wtd' + fname + '.png')
+        plt.savefig(fname_long, dpi=150)
+        plt.close()
+
 def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, exp, outpath):
 
     # Initiate dataframe to store metrics in of wtd
@@ -161,7 +425,6 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, e
         abs_bias_site = bias_site.abs()
         #abs_bias_site_value = abs(abs_bias_site)
         #abs_bias_site = abs_bias_site('bias').update(abs_bias_site_value('bias'))
-
 
         # Save metrics in df_metrics.
         df_metrics.loc[site]['bias (m)'] = bias_site[0]

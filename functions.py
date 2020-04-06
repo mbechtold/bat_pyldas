@@ -23,6 +23,560 @@ from netCDF4 import Dataset
 from pathlib import Path
 from pyldas.functions import find_files
 
+#SA added
+def read_et_data(insitu_path, mastertable_filename, exp, domain, root):
+    """read master table of ET in csv format (; separated), use mastertable to select coordinates
+    if coordinates are within extent and on peat select in situ ET and store both in dataframe for use in plotting"""
+
+    folder_general_et = insitu_path + '/ET/'
+    #set insitu path and read in mastertable ET
+    filenames = find_files(folder_general_et, mastertable_filename)
+    if isinstance(find_files(folder_general_et, mastertable_filename), str):
+        master_table = pd.read_csv(filenames, sep=';')
+    else:
+        for filename in filenames:
+            if filename.endswith('csv'):
+                master_table = pd.read_csv(filename, sep=';')
+                continue
+            else:
+                logging.warning("some files, maybe swp files, exist that start with master table searchstring, not per se the one loading (WTD/ET)")
+
+    #load LDAS structure data in daily timesteps
+    io = LDAS_io('daily', exp=exp, domain=domain, root=root)
+    [lons, lats, llcrnrlat, urcrnrlat, llcrnrlon, urcrnrlon] = setup_grid_grid_for_plot(io)
+
+    #check porosity of coordinate tile, if smaller than 0.6 it i not a peat pixel
+    catparam = io.read_params('catparam')
+    poros = np.full(lons.shape, np.nan)
+    poros[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['poros'].values
+
+    first_site = True
+
+    for i, site_ID in enumerate(master_table.iloc[:, 0]):
+
+        # If site is on the blacklist (contains bad data), or if "comparison" =  0, then don include that site in the dataframe.
+        if master_table['comparison_yes'][i] == 0:
+            continue
+
+
+        #to select only the drained of only the natural ones to calculate skill metrics!
+
+        #if master_table['drained_U=uncertain'][i] == 'D':
+        #    continue
+
+        # if master_table['drained_U=uncertain'][i] == 'U':
+        #    continue
+
+        # Get lat lon from master table for site.
+        lon = master_table['lon'][i]
+
+        # sebastian added   # to skip a site if there is no lon or lat when all are used instead of only the comparison =1 ones.
+        # if np.isnan(lon):
+        #    continue
+
+        lat = master_table['lat'][i]
+
+        # Get porosity for site lon lat.
+        # Get M09 rowcol with data.
+        col, row = io.grid.lonlat2colrow(lon, lat, domain=True)
+        # Get poros for col row. + Check whether site is in domain, if not 'continue' with next site
+        try:
+            siteporos = poros[row, col]
+        except:
+            print(site_ID + " not in domain.")
+            continue
+
+        if siteporos <= 0.60:
+            # If the porosity of the site is 0.6 or lower the site is not classified as peatland in the model.
+            print(site_ID + " not on a peatland grid cell.")
+            continue
+
+        folder_et = insitu_path + '/ET/et/'
+        folder_ee = insitu_path + '/ET/ee/'
+        folder_br = insitu_path + '/ET/br/'
+        folder_rn = insitu_path + '/ET/rn/'
+        folder_sh = insitu_path + '/ET/sh/'
+        folder_le = insitu_path + '/ET/le/'
+        folder_wtd = insitu_path + '/WTD/'
+
+        #load csv file for et
+        try:
+            if isinstance(find_files(folder_et, site_ID),str):
+                filename_et = find_files(folder_et, site_ID)
+                print(filename_et)
+            else:
+                flist = find_files(insitu_path, site_ID)
+                for f in flist:
+                    if f.count('aily')>=1:
+                        filename_et = f
+        except:
+            print(site_ID + " does not have a ET csv file with data.")
+            continue
+        # check for empty path
+        if len(filename_et)<10 or filename_et.endswith('csv')!=True or filename_et.count('WTD') >= 1:
+            print("checking ... "+site_ID+" "+filename_et)
+            print("some other reason for no data for " +site_ID+" in "+filename_et)
+            continue
+
+
+        # load csv file of ee
+        try:
+            if isinstance(find_files(folder_ee, site_ID), str):
+                filename_ee = find_files(folder_ee, site_ID)
+                print(filename_ee)
+            else:
+                flist = find_files(insitu_path, site_ID)
+                for f in flist:
+                    if f.count('aily') >= 1:
+                        filename_ee = f
+        except:
+            print(site_ID + " does not have a EE csv file with data.")
+            continue
+            # check for empty path
+        if len(filename_ee) < 10 or filename_ee.endswith('csv') != True or filename_ee.count('WTD') >= 1:
+            print("checking ... " + site_ID + " " + filename_ee)
+            print("some other reason for no data for " + site_ID + " in " + filename_ee)
+
+
+        # load csv file of br
+        try:
+            if isinstance(find_files(folder_br, site_ID), str):
+                filename_br = find_files(folder_br, site_ID)
+                print(filename_br)
+            else:
+                flist = find_files(insitu_path, site_ID)
+                for f in flist:
+                    if f.count('aily') >= 1:
+                        filename_br = f
+        except:
+            print(site_ID + " does not have a BR csv file with data.")
+            continue
+            # check for empty path
+        if len(filename_br) < 10 or filename_br.endswith('csv') != True or filename_br.count('WTD') >= 1:
+            print("checking ... " + site_ID + " " + filename_br)
+            print("some other reason for no data for " + site_ID + " in " + filename_br)
+
+
+        # load csv file of rn
+        try:
+            if isinstance(find_files(folder_rn, site_ID), str):
+                filename_rn = find_files(folder_rn, site_ID)
+                print(filename_rn)
+
+            else:
+                flist = find_files(folder_rn, site_ID)
+                for f in flist:
+                    if f.count('aily') >= 1:
+                        filename_rn = f
+        except:
+            print(site_ID + " does not have a RN csv file with data.")
+            continue
+            # check for empty path
+        if len(filename_rn) < 10 or filename_rn.endswith('csv') != True or filename_rn.count('WTD') >= 1:
+            print("checking ... " + site_ID + " " + filename_rn)
+            print("some other reason for no data for " + site_ID + " in " + filename_rn)
+
+
+        # load csv file of sh
+        try:
+            if isinstance(find_files(folder_sh, site_ID), str):
+                filename_sh = find_files(folder_sh, site_ID)
+                print(filename_sh)
+            else:
+                flist = find_files(insitu_path, site_ID)
+                for f in flist:
+                    if f.count('aily') >= 1:
+                        filename_sh = f
+        except:
+            print(site_ID + " does not have a SH csv file with data.")
+            continue
+            # check for empty path
+        if len(filename_sh) < 10 or filename_sh.endswith('csv') != True or filename_sh.count('WTD') >= 1:
+            print("checking ... " + site_ID + " " + filename_sh)
+            print("some other reason for no data for " + site_ID + " in " + filename_sh)
+
+
+        # load csv file of le
+        try:
+            if isinstance(find_files(folder_le, site_ID), str):
+                filename_le = find_files(folder_le, site_ID)
+                print(filename_le)
+            else:
+                flist = find_files(insitu_path, site_ID)
+                for f in flist:
+                    if f.count('aily') >= 1:
+                        filename_le = f
+        except:
+            print(site_ID + " does not have a LE csv file with data.")
+            continue
+            # check for empty path
+        if len(filename_le) < 10 or filename_le.endswith('csv') != True or filename_le.count('WTD') >= 1:
+            print("checking ... " + site_ID + " " + filename_le)
+            print("some other reason for no data for " + site_ID + " in " + filename_le)
+
+            # load csv file of le
+        try:
+            if isinstance(find_files(folder_wtd, site_ID), str):
+                filename_wtd = find_files(folder_wtd, site_ID)
+                print(filename_wtd)
+            else:
+                flist = find_files(insitu_path, site_ID)
+                for f in flist:
+                    if f.count('aily') >= 1:
+                        filename_wtd = f
+        except:
+            print(site_ID + " does not have a WTD csv file with data.")
+            continue
+            # check for empty path
+        if len(filename_wtd) < 10 or filename_wtd.endswith('csv') != True:
+            print("checking ... " + site_ID + " " + filename_wtd)
+            print("some other reason for no data for " + site_ID + " in " + filename_wtd)
+
+            # cumbersome first site, next sites ... to be simplified ...
+        if first_site == True:
+
+            # Load in situ ET data
+            print("reading ... " + filename_et)
+            et_obs = pd.read_csv(filename_et)
+            if et_obs.shape[1] == 1:
+                print("ET csv file with semicolon ...")
+                et_obs = pd.read_csv(filename_et, sep=';')
+            et_obs.columns = ['time', site_ID]
+            et_obs['time'] = pd.to_datetime(et_obs['time'])
+            et_obs = et_obs.set_index('time')
+
+            # Load model ET data.
+            et_mod = io.read_ts('evap', lon, lat, lonlat=True)
+            eveg_mod = io.read_ts('eveg', lon, lat, lonlat=True)
+            esoi_mod = io.read_ts('esoi', lon, lat, lonlat=True)
+            eint_mod = io.read_ts('eint', lon, lat, lonlat=True)
+            zbar_mod = io.read_ts('zbar', lon, lat, lonlat=True)
+
+            # Check if overlapping data.
+            df_check = pd.concat((et_obs, et_mod), axis=1)
+            no_overlap = pd.isnull(df_check).any(axis=1)
+            if False in no_overlap.values:
+                first_site = False
+
+
+            # Load in situ EE data
+            print("reading ... " + filename_ee)
+            ee_obs = pd.read_csv(filename_ee)
+            if ee_obs.shape[1] == 1:
+                print("EE csv file with semicolon ...")
+                ee_obs = pd.read_csv(filename_ee, sep=';')
+            ee_obs.columns = ['time', site_ID]
+            ee_obs['time'] = pd.to_datetime(ee_obs['time'])
+            ee_obs = ee_obs.set_index('time')
+
+            # Load in situ RN data
+            print("reading ... " + filename_rn)
+            rn_obs = pd.read_csv(filename_rn)
+            if rn_obs.shape[1] == 1:
+                print("RN csv file with semicolon ...")
+                rn_obs = pd.read_csv(filename_rn, sep=';')
+            rn_obs.columns = ['time', site_ID]
+            rn_obs['time'] = pd.to_datetime(rn_obs['time'])
+            rn_obs = rn_obs.set_index('time')
+
+            # Load in situ LE data
+            print("reading ... " + filename_le)
+            le_obs = pd.read_csv(filename_le)
+            if le_obs.shape[1] == 1:
+                print("LE csv file with semicolon ...")
+                le_obs = pd.read_csv(filename_le, sep=';')
+            le_obs.columns = ['time', site_ID]
+            le_obs['time'] = pd.to_datetime(le_obs['time'])
+            le_obs = le_obs.set_index('time')
+
+            # Load model EE data.
+            try:
+                le_mod = io.read_ts('lhflux', lon, lat, lonlat=True)
+                le_mod = pd.DataFrame(le_mod)
+                swi_mod = io.read_ts('SWdown', lon, lat, lonlat=True)
+                lwi_mod = io.read_ts('LWdown', lon, lat, lonlat=True)
+                swo_mod = io.read_ts('swup', lon, lat, lonlat=True)
+                lwo_mod = io.read_ts('lwup', lon, lat, lonlat=True)
+                rn_mod = pd.concat([lwi_mod, swi_mod, swo_mod, lwo_mod], axis=1)
+                rn_mod = rn_mod['LWdown'] + rn_mod['SWdown'] - rn_mod['swup'] - rn_mod['lwup']
+                ee_mod = le_mod['lhflux']/rn_mod[1]
+            except:
+                print('not all model data is available')
+
+
+            # Load in situ BR data
+            print("reading ... " + filename_br)
+            br_obs = pd.read_csv(filename_br)
+            if br_obs.shape[1] == 1:
+                print("BR csv file with semicolon ...")
+                br_obs = pd.read_csv(filename_br, sep=';')
+            br_obs.columns = ['time', site_ID]
+            br_obs['time'] = pd.to_datetime(br_obs['time'])
+            br_obs = br_obs.set_index('time')
+
+            # Load in situ SH data
+            print("reading ... " + filename_sh)
+            sh_obs = pd.read_csv(filename_sh)
+            if sh_obs.shape[1] == 1:
+                print("SH csv file with semicolon ...")
+                sh_obs = pd.read_csv(filename_sh, sep=';')
+            sh_obs.columns = ['time', site_ID]
+            sh_obs['time'] = pd.to_datetime(sh_obs['time'])
+            sh_obs = sh_obs.set_index('time')
+
+            # Load model BR data.
+            le_mod = io.read_ts('lhflux', lon, lat, lonlat=True)
+            le_mod = pd.DataFrame(le_mod)
+            sh_mod = io.read_ts('shflux', lon, lat, lonlat=True)
+            sh_mod = pd.DataFrame(sh_mod)
+            br_mod = sh_mod['shflux']/le_mod['lhflux']
+
+            # Load in situ WTD data
+            print("reading ... " + filename_wtd)
+            wtd_obs = pd.read_csv(filename_wtd)
+            if wtd_obs.shape[1] == 1:
+                print("SH csv file with semicolon ...")
+                wtd_obs = pd.read_csv(filename_wtd, sep=';')
+            wtd_obs.columns = ['time', site_ID]
+            wtd_obs['time'] = pd.to_datetime(wtd_obs['time'])
+            wtd_obs = wtd_obs.set_index('time')
+
+        else:
+            # Load in situ ET data
+            print("reading ... "+filename_et)
+            et_obs_tmp = pd.read_csv(filename_et)
+            if et_obs_tmp.shape[1]==1:
+                print("ET csv file with semicolon ...")
+                et_obs_tmp = pd.read_csv(filename_et,sep=';')
+            et_obs_tmp.columns = ['time', site_ID]
+            et_obs_tmp['time'] = pd.to_datetime(et_obs_tmp['time'])
+            et_obs_tmp = et_obs_tmp.set_index('time')
+
+            # Load model data of ET (and components).
+            et_mod_tmp = io.read_ts('evap', lon, lat, lonlat=True)
+            eveg_mod_tmp = io.read_ts('eveg', lon, lat, lonlat=True)
+            esoi_mod_tmp = io.read_ts('esoi', lon, lat, lonlat=True)
+            eint_mod_tmp = io.read_ts('eint', lon, lat, lonlat=True)
+            zbar_mod_tmp = io.read_ts('zbar', lon, lat, lonlat=True)
+
+            # Check if overlaping data.
+            df_check_et = pd.concat((et_obs_tmp,et_mod_tmp), axis=1)
+            no_overlap_et = pd.isnull(df_check_et).any(axis=1)
+
+            if False in no_overlap_et.values:
+                et_obs = pd.concat((et_obs, et_obs_tmp), axis=1)
+                et_mod = pd.concat((et_mod, et_mod_tmp), axis=1)
+
+            df_check_eveg = pd.concat((et_obs_tmp,eveg_mod_tmp), axis=1)
+            no_overlap_eveg = pd.isnull(df_check_eveg).any(axis=1)
+
+            if False in no_overlap_eveg.values:
+                eveg_mod = pd.concat((eveg_mod, eveg_mod_tmp), axis=1)
+
+            df_check_esoi = pd.concat((et_obs_tmp,esoi_mod_tmp), axis=1)
+            no_overlap_esoi = pd.isnull(df_check_esoi).any(axis=1)
+
+            if False in no_overlap_esoi.values:
+                esoi_mod = pd.concat((esoi_mod, esoi_mod_tmp), axis=1)
+
+            df_check_eint = pd.concat((et_obs_tmp,eint_mod_tmp), axis=1)
+            no_overlap_eint = pd.isnull(df_check_eint).any(axis=1)
+
+            if False in no_overlap_eint.values:
+                eint_mod = pd.concat((eint_mod, eint_mod_tmp), axis=1)
+
+            df_check_zbar = pd.concat((et_obs_tmp,zbar_mod_tmp), axis=1)
+            no_overlap_zbar = pd.isnull(df_check_zbar).any(axis=1)
+
+            if False in no_overlap_zbar.values:
+                zbar_mod = pd.concat((zbar_mod, zbar_mod_tmp), axis=1)
+
+
+            # Load in situ EE data
+            print("reading ... " + filename_ee)
+            ee_obs_tmp = pd.read_csv(filename_ee)
+            if ee_obs_tmp.shape[1] == 1:
+                print("EE csv file with semicolon ...")
+                ee_obs_tmp = pd.read_csv(filename_ee, sep=';')
+            ee_obs_tmp.columns = ['time', site_ID]
+            ee_obs_tmp['time'] = pd.to_datetime(ee_obs_tmp['time'])
+            ee_obs_tmp = ee_obs_tmp.set_index('time')
+
+            # Load in situ RN data
+            print("reading ... " + filename_rn)
+            rn_obs_tmp = pd.read_csv(filename_rn)
+            if rn_obs_tmp.shape[1] == 1:
+                print("RN csv file with semicolon ...")
+                rn_obs_tmp = pd.read_csv(filename_rn, sep=';')
+            rn_obs_tmp.columns = ['time', site_ID]
+            rn_obs_tmp['time'] = pd.to_datetime(rn_obs_tmp['time'])
+            rn_obs_tmp = rn_obs_tmp.set_index('time')
+
+            # Load in situ LE data
+            print("reading ... " + filename_le)
+            le_obs_tmp = pd.read_csv(filename_le)
+            if le_obs_tmp.shape[1] == 1:
+                print("LE csv file with semicolon ...")
+                le_obs_tmp = pd.read_csv(filename_le, sep=';')
+            le_obs_tmp.columns = ['time', site_ID]
+            le_obs_tmp['time'] = pd.to_datetime(le_obs_tmp['time'])
+            le_obs_tmp = le_obs_tmp.set_index('time')
+
+            # Load model EE data.
+            try:
+                le_mod_tmp = io.read_ts('lhflux', lon, lat, lonlat=True)
+                le_mod_tmp = pd.DataFrame(le_mod_tmp)
+                swi_mod_tmp = io.read_ts('SWdown', lon, lat, lonlat=True)
+                lwi_mod_tmp = io.read_ts('LWdown', lon, lat, lonlat=True)
+                swo_mod_tmp = io.read_ts('swup', lon, lat, lonlat=True)
+                lwo_mod_tmp = io.read_ts('lwup', lon, lat, lonlat=True)
+                rn_mod_tmp = pd.concat([lwi_mod_tmp, swi_mod_tmp, swo_mod_tmp, lwo_mod_tmp], axis=1)
+                rn_mod_tmp = rn_mod_tmp['LWdown'] + rn_mod_tmp['SWdown'] - rn_mod_tmp['swup'] - rn_mod_tmp['lwup']
+                rn_mod_tmp = pd.DataFrame(rn_mod_tmp)
+                ee_mod_tmp = le_mod_tmp['lhflux']/rn_mod_tmp[0]
+                ee_mod_tmp = pd.DataFrame(ee_mod_tmp)
+
+
+                # Check if overlapping data in ee
+                df_check_ee = pd.concat((ee_obs_tmp, ee_mod_tmp), axis=1)
+                no_overlap_ee = pd.isnull(df_check_ee).any(axis=1)
+
+                if False in no_overlap_ee.values:
+                    ee_obs = pd.concat((ee_obs, ee_obs_tmp), axis=1)
+                    ee_mod = pd.concat((ee_mod, ee_mod_tmp), axis=1)
+
+
+                # Check if overlapping data in rn
+                df_check_rn = pd.concat((rn_obs_tmp, rn_mod_tmp), axis=1)
+                no_overlap_rn = pd.isnull(df_check_rn).any(axis=1)
+
+                if False in no_overlap_rn.values:
+                    rn_obs = pd.concat((rn_obs, rn_obs_tmp), axis=1)
+                    rn_mod = pd.concat((rn_mod, rn_mod_tmp), axis=1)
+
+
+                # Check if overlapping data in le
+                df_check_le = pd.concat((le_obs_tmp, le_mod_tmp), axis=1)
+                no_overlap_le = pd.isnull(df_check_le).any(axis=1)
+
+                if False in no_overlap_le.values:
+                    le_obs = pd.concat((le_obs, le_obs_tmp), axis=1)
+                    le_mod = pd.concat((le_mod, le_mod_tmp), axis=1)
+            except:
+                print('not all model data is available')
+
+            # Load in situ BR data
+            print("reading ... " + filename_br)
+            br_obs_tmp = pd.read_csv(filename_br)
+            if br_obs_tmp.shape[1] == 1:
+                print("BR csv file with semicolon ...")
+                br_obs_tmp = pd.read_csv(filename_br, sep=';')
+            br_obs_tmp.columns = ['time', site_ID]
+            br_obs_tmp['time'] = pd.to_datetime(br_obs_tmp['time'])
+            br_obs_tmp = br_obs_tmp.set_index('time')
+
+            # Load in situ sh data
+            print("reading ... " + filename_sh)
+            sh_obs_tmp = pd.read_csv(filename_sh)
+            if sh_obs_tmp.shape[1] == 1:
+                print("SH csv file with semicolon ...")
+                sh_obs_tmp = pd.read_csv(filename_sh, sep=';')
+            sh_obs_tmp.columns = ['time', site_ID]
+            sh_obs_tmp['time'] = pd.to_datetime(sh_obs_tmp['time'])
+            sh_obs_tmp = sh_obs_tmp.set_index('time')
+
+            # Load model BR data.
+            le_mod_tmp = io.read_ts('lhflux', lon, lat, lonlat=True)
+            le_mod_tmp = pd.DataFrame(le_mod_tmp)
+            sh_mod_tmp = io.read_ts('shflux', lon, lat, lonlat=True)
+            sh_mod_tmp = pd.DataFrame(sh_mod_tmp)
+            br_mod_tmp = sh_mod_tmp['shflux']/le_mod_tmp['lhflux']
+
+            # Check if overlapping data in br.
+            df_check_br = pd.concat((br_obs_tmp, br_mod_tmp), axis=1)
+            no_overlap_br = pd.isnull(df_check_br).any(axis=1)
+
+            if False in no_overlap_br.values:
+                br_obs = pd.concat((br_obs, br_obs_tmp), axis=1)
+                br_mod = pd.concat((br_mod, br_mod_tmp), axis=1)
+
+
+            # Check if overlapping data in sh.
+            df_check_sh = pd.concat((sh_obs_tmp, sh_mod_tmp), axis=1)
+            no_overlap_sh = pd.isnull(df_check_sh).any(axis=1)
+
+            if False in no_overlap_sh.values:
+                sh_obs = pd.concat((sh_obs, sh_obs_tmp), axis=1)
+                sh_mod = pd.concat((sh_mod, sh_mod_tmp), axis=1)
+
+            # Load in situ sh data
+            print("reading ... " + filename_wtd)
+            wtd_obs_tmp = pd.read_csv(filename_wtd)
+            if wtd_obs_tmp.shape[1] == 1:
+                print("WTD csv file with semicolon ...")
+                wtd_obs_tmp = pd.read_csv(filename_wtd, sep=';')
+            wtd_obs_tmp.columns = ['time', site_ID]
+            wtd_obs_tmp['time'] = pd.to_datetime(wtd_obs_tmp['time'])
+            wtd_obs_tmp = wtd_obs_tmp.set_index('time')
+
+            # Check if overlapping data in sh.
+            df_check_wtd = pd.concat((wtd_obs_tmp, et_mod_tmp), axis=1)
+            no_overlap_wtd = pd.isnull(df_check_wtd).any(axis=1)
+
+            if False in no_overlap_wtd.values:
+                wtd_obs = pd.concat((wtd_obs, wtd_obs_tmp), axis=1)
+
+
+    et_mod = pd.DataFrame(et_mod)
+    et_mod.columns = et_obs.columns
+
+    eveg_mod = pd.DataFrame(eveg_mod)
+    eveg_mod.columns = et_obs.columns
+
+    esoi_mod = pd.DataFrame(esoi_mod)
+    esoi_mod.columns = et_obs.columns
+
+    eint_mod = pd.DataFrame(eint_mod)
+    eint_mod.columns = et_obs.columns
+
+    zbar_mod = pd.DataFrame(zbar_mod)
+    zbar_mod.columns = et_obs.columns
+
+    et_mod_copy = et_mod.copy()
+    for col in et_mod_copy:
+        et_mod_copy[col].values[:] = 0
+
+    try:
+        ee_mod = pd.DataFrame(ee_mod)
+        ee_mod.columns = ee_obs.columns
+    except:
+        ee_mod = et_mod_copy
+
+
+    br_mod = pd.DataFrame(br_mod)
+    br_mod.columns = br_obs.columns
+
+
+    try:
+        rn_mod = pd.DataFrame(rn_mod)
+        rn_mod.columns = rn_obs.columns
+    except:
+        rn_mod = et_mod_copy
+
+
+    sh_mod = pd.DataFrame(sh_mod)
+    sh_mod.columns = sh_obs.columns
+
+
+    le_mod = pd.DataFrame(le_mod)
+    le_mod.columns = le_obs.columns
+
+
+    wtd_obs = pd.DataFrame(wtd_obs)
+
+    return et_obs, et_mod, ee_obs, ee_mod, br_obs, br_mod, rn_obs, rn_mod, sh_obs, sh_mod, le_obs, le_mod, zbar_mod, eveg_mod, esoi_mod, eint_mod, wtd_obs
+
+
 def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
     # read in in situ data of water table depth time series and master table in csv format
     # read out modeled time series for nearest grid cell
@@ -126,7 +680,6 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
             continue
 
         folder_p = insitu_path + '/Rainfall/'
-        site_precip = site_ID
 
         try:
             if isinstance(find_files(insitu_path, site_ID),str):
