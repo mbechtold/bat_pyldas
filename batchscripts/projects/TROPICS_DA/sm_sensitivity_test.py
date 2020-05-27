@@ -16,6 +16,75 @@ from netCDF4 import Dataset
 from pyldas.interface import LDAS_io
 
 
+
+
+# sebastian added plot for wtd vs sfmc
+root = '/staging/leuven/stg_00024/OUTPUT/sebastiana'
+exp = 'INDONESIA_M09_PEATCLSMTN_v01'
+domain = 'SMAP_EASEv2_M09'
+outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/IN/Natural/'
+
+if '/Drained' in outpath:
+    style = ['m.']
+elif '/Natural' in outpath:
+    style = ['g.']
+
+lsm = LDAS_io('daily', exp=exp, domain=domain, root=root)
+
+# natural
+lon=138.6
+lat=-5.1
+lon = 144.7
+lat = -6.8
+
+#sebangau forest
+lon = 114.2
+lat = -3
+# Drained Indonesia
+lon=103
+lat=-0.75
+[col, row] = lsm.grid.lonlat2colrow(lon, lat, domain=True)
+
+
+sfmc = lsm.read_ts('sfmc', col, row, lonlat=False)
+zbar = lsm.read_ts('zbar', col, row, lonlat=False)
+
+df = pd.concat((sfmc,zbar),axis=1)
+
+fig = plt.figure(figsize=(20,10))
+fontsize = 18
+ax1 = plt.subplot2grid((2, 1), (0, 0), rowspan=1, colspan=1, fig=None)
+df['sfmc'].plot(ax=ax1,style=style, markersize=5, fontsize=fontsize+8, linewidth=2)
+plt.ylabel('Surface moisture content (vol/vol)', fontsize=18)
+plt.legend(fontsize=16)
+plt.xticks(fontsize=18)
+plt.yticks(fontsize=18)
+
+ax0 = plt.subplot2grid((2, 1), (1, 0), rowspan=1, colspan=1, fig=None)
+df['zbar'].plot(ax=ax0,style=style, markersize=5, fontsize=fontsize+8, linewidth=2)
+plt.ylabel('Water table depth (m)', fontsize=18)
+plt.legend(fontsize=16)
+plt.xticks(fontsize=18)
+plt.yticks(fontsize=18)
+
+fname = 'zbarandsfmc_' +outpath[52:59]
+fname_long = os.path.join(outpath + fname + '.png')
+plt.savefig(fname_long, dpi=300)
+
+fig1 = plt.figure(figsize=(18,18))
+df.plot(y='sfmc', x='zbar', style=style, fontsize= fontsize+4, linewidth=2)
+plt.ylabel('Surface moisture content (vol/vol)', fontsize=14)
+plt.xlabel('Water Table depth (m)', fontsize=14)
+plt.xticks(fontsize=14)
+plt.yticks(fontsize=14)
+
+fname = 'zbar-sfmc_' +outpath[52:59]
+fname_long = os.path.join(outpath + fname + '.png')
+plt.savefig(fname_long, dpi=300)
+
+
+
+
 root='/staging/leuven/stg_00024/OUTPUT/michelb/TROPICS'
 outpath = '/staging/leuven/stg_00024/OUTPUT/michelb/FIG_tmp/TROPICS/sm_sensitivity_test'
 exp='INDONESIA_M09_PEATCLSMTN_v01_SMOSfw'
@@ -103,7 +172,7 @@ df['emissivity_ha'].plot(ax=ax3,style=['x'], fontsize=fontsize, linewidth=2)
 plt.ylabel('emissivity ha [-]')
 ax4 = plt.subplot(514)
 df['mpdi'].plot(ax=ax4,style=['x'], fontsize=fontsize, linewidth=2)
-plt.ylabel('mpdi [-]')
+plt.ylabel('mpdi [-]') 
 ax5 = plt.subplot(515)
 df['lai'].plot(ax=ax5,style=['x'], fontsize=fontsize, linewidth=2)
 plt.ylabel('lai [m2/m2]')
@@ -120,3 +189,4 @@ ax3 = plt.subplot(223)
 plt.plot(df['mpdi'],df['sfmc'],'.')
 plt.xlabel('mpdi')
 plt.show()
+
