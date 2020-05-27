@@ -567,7 +567,6 @@ def read_et_data(insitu_path, mastertable_filename, exp, domain, root):
     sh_mod = pd.DataFrame(sh_mod)
     sh_mod.columns = sh_obs.columns
 
-
     le_mod = pd.DataFrame(le_mod)
     le_mod.columns = le_obs.columns
 
@@ -748,10 +747,9 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
             if False in no_overlap.values:
                 first_site = False
 
-
             # Load model precip data. --> only simulated for natural so keep natural one
             try:
-                io2=LDAS_io('daily', exp='SAMERICA_M09_PEATCLSMTN_v01', domain=domain, root=root)
+                io2=LDAS_io('daily', exp=exp, domain=domain, root=root)
                 precip_mod = io2.read_ts('Rainf', lon, lat, lonlat=True)
             except:
                 precip_mod = wtd_mod.copy()
@@ -799,7 +797,7 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
 
             try:
                 # Load model precip data.
-                io2 = LDAS_io('daily', exp='SAMERICA_M09_PEATCLSMTN_v01', domain=domain, root=root)
+                io2 = LDAS_io('daily', exp=exp, domain=domain, root=root)
                 precip_mod_tmp = io2.read_ts('Rainf', lon, lat, lonlat=True)
             except:
                 precip_mod_tmp = wtd_mod_tmp.copy()

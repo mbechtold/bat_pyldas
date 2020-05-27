@@ -20,14 +20,15 @@ from validation_good_practice.ancillary import metrics
 
 plot_maps = 0
 plot_insitu = 1
+plot_ET_insitu = 0
 plot_insitu_multiple_exp = 0
 
 # maps
 if plot_maps==1:
     root='/staging/leuven/stg_00024/OUTPUT/sebastiana'
-    exp = 'SAMERICA_M09_PEATCLSMTN_v01'
+    exp = 'SAMERICA_M09_PEATCLSMTD_v01'
     domain = 'SMAP_EASEv2_M09'
-    outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/SA/Natural'
+    outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/SA/Drained'
     # Catchment Parameters
     plot_catparams(exp, domain, root, outpath)
     # Temporal mean and standard deviation of variables
@@ -37,15 +38,27 @@ if plot_maps==1:
 if plot_insitu==1:
     ## in situ data
     root='/staging/leuven/stg_00024/OUTPUT/sebastiana'
-    exp = 'INDONESIA_M09_PEATCLSMTN_v01'
+    exp = 'CONGO_M09_PEATCLSMTN_v01'
     domain = 'SMAP_EASEv2_M09'
-    outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/IN/Natural'
+    outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/CO/Natural'
     os.makedirs(outpath,exist_ok=True)
     insitu_path = '/data/leuven/317/vsc31786/peatland_data/tropics'
     mastertable_filename = 'WTD_TROPICS_MASTER_TABLE_ALLDorN.csv'
     ####
     wtd_obs, wtd_mod, precip_obs, precip_mod = read_wtd_data(insitu_path, mastertable_filename, exp, domain, root)
     plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, exp, outpath)
+
+if plot_ET_insitu == 1:
+    root='/staging/leuven/stg_00024/OUTPUT/sebastiana'
+    exp = 'INDONESIA_M09_PEATCLSMTD_v01'
+    domain = 'SMAP_EASEv2_M09'
+    outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/IN/Drained/ET'
+    os.makedirs(outpath,exist_ok=True)
+    insitu_path = '/data/leuven/317/vsc31786/peatland_data/tropics'
+    mastertable_filename = 'ET_TROPICS_MASTER_TABLE.csv'
+    ####
+    et_obs, et_mod, ee_obs, ee_mod, br_obs, br_mod, rn_obs, rn_mod, sh_obs, sh_mod, le_obs, le_mod , zbar_mod, eveg_mod, esoi_mod, eint_mod, wtd_obs= read_et_data(insitu_path, mastertable_filename, exp, domain, root)
+    plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_mod, rn_obs, rn_mod, sh_obs, sh_mod, le_obs, le_mod, zbar_mod, eveg_mod, esoi_mod, eint_mod, wtd_obs, exp, outpath)
 
 # insitu
 if plot_insitu_multiple_exp==1:

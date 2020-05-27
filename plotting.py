@@ -189,16 +189,16 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         df_zscore = df_tmp2_et.apply(zscore)
 
         # define color based on where it is stored/which model run it uses
-        if '/Drained' in outpath:
+        if '/Northern/' in outpath:
+            color = ['darkorange', '#1f77b4']
+        elif '/CLSM/' in outpath:
+            color = ['dimgray', '#1f77b4']
+        elif '/Drained' in outpath:
             color = ['m', '#1f77b4']
         elif '/Natural' in outpath:
             color = ['g', '#1f77b4']
             #to make a good color distinction
             #color = ['g', 'r']
-        elif '/Northern/' in outpath:
-            color = ['o', '#1f77b4']
-        elif '/CLSM/' in outpath:
-            color = ['o', '#1f77b4']
         else:
             color = ['#1f77b4', '#1f77b4']
 
@@ -209,8 +209,9 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
 
         ax1 = plt.subplot2grid((2, 1), (0, 0), rowspan=1, fig=None)
         df_tmp_et = df_tmp_et[['data_mod', 'data_obs']]
-        df_tmp_et.plot(ax=ax1, fontsize=fontsize, style=['-', '.'], color=color, linewidth=0.9, markersize=3.8,
-                        xlim=Xlim_wtd)
+        df_tmp_et.plot(ax=ax1, fontsize=fontsize, style=['-', '.'], color=color, linewidth=0.9, markersize=3,
+                       xlim=Xlim_wtd, ylim = [0, 7.5])
+
         plt.ylabel('ET (mm/day)')
 
         Title = site + '\n' + ' bias = ' + str(bias_site[0]) + ' (mm/day), ubRMSD = ' + str(
@@ -351,7 +352,7 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         plt.yticks(fontsize=18)
 
         ax1 = plt.subplot2grid((2, 3), (0, 1), rowspan=1, colspan=1, fig=None)
-        df_dataframe.plot(ax=ax1, y= 'evap', x='zbar',fontsize=fontsize, style=['.'], color=['green'], markersize= 3.5)
+        df_dataframe.plot(ax=ax1, y= 'evap', x='zbar',fontsize=fontsize, style=['.'], color=color, markersize= 3.5)
         plt.ylabel('Evapotranspiration (mm/day)', fontsize=22)
         plt.xlabel('Water table depth (m)', fontsize=22)
         plt.legend(fontsize=20)
@@ -360,7 +361,7 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         plt.yticks(fontsize=18)
 
         ax2 = plt.subplot2grid((2, 3), (1, 1), rowspan=1, colspan=1, fig=None)
-        df_dataframe.plot(ax=ax2, y= 'eveg', x='zbar',fontsize=fontsize, style=['.'], color=['green'], markersize= 3.5)
+        df_dataframe.plot(ax=ax2, y= 'eveg', x='zbar',fontsize=fontsize, style=['.'], color=color, markersize= 3.5)
         plt.ylabel('Plant Transpiration (mm/day)', fontsize=22)
         plt.xlabel('Water table depth (m)', fontsize=22)
         plt.legend(fontsize=20)
@@ -369,7 +370,7 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         plt.yticks(fontsize=18)
 
         ax3 = plt.subplot2grid((2, 3), (0, 2), rowspan=1, colspan=1, fig=None)
-        df_dataframe.plot(ax=ax3, y= 'esoi', x='zbar', fontsize=fontsize, style=['.'], color=['green'], markersize= 3.5)
+        df_dataframe.plot(ax=ax3, y= 'esoi', x='zbar', fontsize=fontsize, style=['.'], color=color, markersize= 3.5)
         plt.ylabel('Soil Evaporation (mm/day)', fontsize=22)
         plt.xlabel('Water table depth (m)', fontsize=22)
         plt.legend(fontsize=20)
@@ -378,7 +379,7 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         plt.yticks(fontsize=18)
 
         ax4 = plt.subplot2grid((2, 3), (1, 2), rowspan=1, colspan=1, fig=None)
-        df_dataframe.plot(ax=ax4, y= 'eint', x='zbar', fontsize=fontsize, style=['.'], color=['green'], markersize= 3.5)
+        df_dataframe.plot(ax=ax4, y= 'eint', x='zbar', fontsize=fontsize, style=['.'], color=color, markersize= 3.5)
         plt.ylabel('Interception Evaporation (mm/day)', fontsize=22)
         plt.xlabel('Water table depth (m)', fontsize=22)
         plt.legend(fontsize=20)
@@ -470,20 +471,25 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, e
         fontsize = 12
 
         #define color based on where it is stored/which model run it uses
-        if '/Drained' in outpath:
+        if '/Northern/' in outpath:
+            color = ['darkorange', '#1f77b4']
+        elif '/CLSM/' in outpath:
+            color = ['dimgray', '#1f77b4']
+        elif '/Drained' in outpath:
             color=['m','#1f77b4']
         elif '/Natural' in outpath:
             color=['g','#1f77b4']
-        elif '/Northern/' in outpath:
-            color = ['o', '#1f77b4']
-        elif '/CLSM/' in outpath:
-            color = ['o', '#1f77b4']
         else:
             color=['#1f77b4','#1f77b4']
 
         ax1 = plt.subplot2grid((3,3), (0,0), rowspan=1, colspan=3, fig=None)
         df_tmp_wtd =df_tmp_wtd[['data_mod','data_obs']]
-        df_tmp_wtd.plot(ax=ax1, fontsize=fontsize, style=['-','.'], color=color, linewidth=2, markersize=4.5, xlim=Xlim_wtd)
+        df_tmp_wtd.plot(ax=ax1, fontsize=fontsize, style=['-', '.'], color=color, linewidth=2, markersize=4.5, xlim=Xlim_wtd)
+        #this can be used to define the axes of certain sites. and replace the above line
+        #if ('UndrainedPSF' in site ) or ('DrainedPSF' in site):
+        #    df_tmp_wtd.plot(ax=ax1, fontsize=fontsize, style=['-','.'], color=color, linewidth=2, markersize=4.5, xlim=Xlim_wtd, ylim=[-2.0, 0.2])
+        #else:
+        #    df_tmp_wtd.plot(ax=ax1, fontsize=fontsize, style=['-','.'], color=color, linewidth=2, markersize=4.5, xlim=Xlim_wtd)
         plt.ylabel('zbar [m]')
 
         Title = site + '\n' + ' bias = ' + str(bias_site[0]) + ', ubRMSD = ' + str(ubRMSD_site[0]) + ', Pearson_R = ' + str(pearson_R_site[0]) + ', RMSD = ' + str(RMSD_site) + ' abs_bias = ' + str(abs_bias_site[0])
@@ -549,6 +555,12 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, e
     plt.title(Title, fontsize=9)
     plt.savefig(fname_long, dpi=150)
     plt.close()
+
+    #Sebastian added this to export the skillmetrics of each run so that it can be combined in 1 figure
+    skillpath = '/data/leuven/324/vsc32460/FIG/'
+    fname = 'skillmetrics_' + outpath[52:55] + '_Drained' + exp[0:2] +'_' + exp[-14:-4] +'.csv'
+    df_metrics.to_csv (skillpath + fname, index = True, header=True)
+
 
     #comparison of abs bias P to WTD R
     if (exp =='INDONESIA_M09_PEATCLSMTN_v01'):
