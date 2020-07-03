@@ -9,6 +9,7 @@ import pandas as pd
 import numpy as np
 import datetime
 import seaborn as sns
+import math as math
 import matplotlib.pyplot as plt
 from sklearn import linear_model
 from mpl_toolkits.basemap import Basemap
@@ -128,7 +129,7 @@ def plot_catparams(exp, domain, root, outpath):
         figure_single_default(data=data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
                               llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title=param)
 
-def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_mod, rn_obs, rn_mod, sh_obs, sh_mod, le_obs, le_mod, zbar_mod, eveg_mod, esoi_mod, eint_mod, wtd_obs, exp, outpath):
+def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_mod, rn_obs, rn_mod, sh_obs, sh_mod, le_obs, le_mod, zbar_mod, eveg_mod, esoi_mod, eint_mod, wtd_obs, ghflux_mod, Psurf_mod, Tair_mod, Tair_obs, exp, outpath):
 
     INDEX = et_obs.columns
     COL = ['bias (m)', 'ubRMSD (m)', 'Pearson_R (-)', 'RMSD (m)','abs_bias (m)']
@@ -393,6 +394,201 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         plt.savefig(fname_long, dpi=150)
         plt.close()
 
+# calculation of ETpot and normalization plot
+        # calculation of ETpot according to Maes et al.2017
+        # Change Tair and rn from Tair_mod to Tair_obs and rn_mod to rn_obs
+        # Model ETpot!!!!
+        Tair_mod[site]=(Tair_mod[site]) -273.15 #to calculate everything as °C instead of K, how they do it in Allen et al. 1998 (=FAO)
+        alpha_PT =1.09
+        psi=0.655*(10e-6)*Psurf_mod[site]
+        s_teller=(0.6108)*np.exp(((17.27*Tair_mod[site])/(Tair_mod[site]+237.3)))
+        s_noemer=(Tair_mod[site]+237.3)**2
+        s = 4098*(s_teller/s_noemer)
+        ETpot_mod = (alpha_PT*((s*(rn_mod[site]-ghflux_mod[site]))/(s+psi)))/7.3992
+
+        # In situ ETpot!!!
+        Tair_obs[site]=(Tair_obs[site]) #to calculate everything as °C instead of K, how they do it in Allen et al. 1998 (=FAO)
+        alpha_PT =1.09
+        psi=0.655*(10e-6)*Psurf_mod[site]
+        s_teller=(0.6108)*np.exp(((17.27*Tair_obs[site])/(Tair_obs[site]+237.3)))
+        s_noemer=(Tair_obs[site]+237.3)**2
+        s = 4098*(s_teller/s_noemer)
+        ETpot_obs = (alpha_PT*((s*(rn_obs[site]-ghflux_mod[site]))/(s+psi)))/7.3992
+
+
+        #other df calculations
+        et_obs_used = et_obs[site]
+        et_mod_used = et_mod[site]
+
+        norm_et_mod = et_obs_used/ETpot_mod
+        norm_et_obs = et_obs_used/ETpot_obs
+        norm_et_mod = pd.Series.to_frame(norm_et_mod)
+        norm_et_obs = pd.Series.to_frame(norm_et_obs)
+        norm_et_wtd_mod = pd.concat([norm_et_mod, wtd_obs[site]],axis=1)
+        norm_et_wtd_mod.columns = ['et_norm_mod','wtd_obs']
+        norm_et_wtd_mod = norm_et_wtd_mod[norm_et_wtd_mod['wtd_obs'].notna()] #removes all rows for each column with nan-values in column: wtd_obs
+        norm_et_wtd_obs = pd.concat([norm_et_obs, wtd_obs[site]],axis=1)
+        norm_et_wtd_obs.columns = ['et_norm_obs','wtd_obs']
+        norm_et_wtd_obs = norm_et_wtd_obs[norm_et_wtd_obs['wtd_obs'].notna()] #removes all rows for each column with nan-values in column: wtd_obs
+        pot_et_wtd_mod = pd.concat([ETpot_mod, wtd_obs[site]], axis=1)
+        pot_et_wtd_mod.columns = ['pot_et_mod','wtd_obs']
+        pot_et_wtd_mod = pot_et_wtd_mod[pot_et_wtd_mod['wtd_obs'].notna()] #removes all rows for each column with nan-values in column: wtd_obs
+        pot_et_wtd_obs = pd.concat([ETpot_obs, wtd_obs[site]],axis=1)
+        pot_et_wtd_obs.columns = ['pot_et_obs','wtd_obs']
+        pot_et_wtd_obs = pot_et_wtd_obs[pot_et_wtd_obs['wtd_obs'].notna()] #removes all rows for each column with nan-values in column: wtd_obs
+
+        et_obs_used = pd.Series.to_frame(et_obs_used)
+        et_mod_used = pd.Series.to_frame(et_mod_used)
+        ETpot_mod = pd.Series.to_frame(ETpot_mod)
+        ETpot_obs = pd.Series.to_frame(ETpot_obs)
+
+
+        if site is 'UndrainedPSF' or 'DrainedPSF':
+            norm_et_wtd_obs.to_csv(r'/data/leuven/324/vsc32460/FIG/in_situ_comparison/IN/Natural/ET/ETpot_WTD_obs'+ site+ '.csv', index = True, header=True)
+            norm_et_wtd_mod.to_csv(r'/data/leuven/324/vsc32460/FIG/in_situ_comparison/IN/Natural/ET/ETpot_WTD_mod'+ site+ '.csv', index = True, header=True)
+
+
+# fig6
+        fig6 = plt.figure(figsize=(20, 12))
+        fontsize = 12
+
+        #xlim to check only one specific year or period
+        #Xlim_wtd = [df_tmp2_et.index[365], df_tmp2_et.index[365+365+365]]
+
+        ax1 = plt.subplot2grid((3, 1), (0, 0), rowspan=1, colspan= 1, fig=None)
+        ETpot_mod.plot(ax=ax1, fontsize=fontsize, style=['-'], color='darkorange', linewidth=0.9, xlim=Xlim_wtd)
+        plt.ylabel('Model potential ET (mm/day)', fontsize=16)
+        plt.legend()
+        plt.ylim([2, 8])
+
+        ax2 = plt.subplot2grid((3, 1), (1, 0), rowspan=1, colspan=1, fig=None)
+        et_obs_used.plot(ax=ax2, fontsize=fontsize, style=['-'], color='#1f77b4', linewidth=0.9, xlim=Xlim_wtd)
+        plt.ylabel('In situ ET \n (mm/day)', fontsize=16)
+        plt.legend()
+
+        ax3 = plt.subplot2grid((3, 1), (2, 0), rowspan=1, colspan=1, fig=None)
+        norm_et_mod.plot(ax=ax3, fontsize=fontsize, style=['-'], color='darkolivegreen', linewidth=0.9, xlim=Xlim_wtd)
+        plt.ylabel('Normalized ET with ETpot \n from model (mm/day)', fontsize=16)
+        plt.legend()
+        plt.ylim([0.25, 2])
+
+        plt.tight_layout()
+        fname = site
+        fname_long = os.path.join(outpath + '/ET_mod_timeseries' + fname + '.png')
+        plt.savefig(fname_long, dpi=150)
+        plt.close()
+
+# fig7
+        fig7 = plt.figure(figsize=(20, 12))
+        fontsize = 12
+
+        ax1 = plt.subplot2grid((3, 1), (0, 0), rowspan=1, colspan=1, fig=None)
+        ETpot_obs.plot(ax=ax1, fontsize=fontsize, style=['-'], color='sandybrown', linewidth=0.9, xlim=Xlim_wtd)
+        plt.ylabel('In situ potential ET (mm/day)', fontsize=16)
+        plt.legend()
+        plt.ylim([2, 8])
+
+        ax2 = plt.subplot2grid((3, 1), (1, 0), rowspan=1, colspan=1, fig=None)
+        et_obs_used.plot(ax=ax2, fontsize=fontsize, style=['-'], color='#1f77b4', linewidth=0.9, xlim=Xlim_wtd)
+        plt.ylabel('In situ ET \n (mm/day)', fontsize=16)
+        plt.legend()
+
+        ax3 = plt.subplot2grid((3, 1), (2, 0), rowspan=1, colspan=1, fig=None)
+        norm_et_obs.plot(ax=ax3, fontsize=fontsize, style=['-'], color='limegreen', linewidth=0.9, xlim=Xlim_wtd)
+        plt.ylabel('Normalized ET with ETpot \n from in situ (mm/day)', fontsize=16)
+        plt.legend()
+        plt.ylim([0.25, 2])
+
+        plt.tight_layout()
+        fname = site
+        fname_long = os.path.join(outpath + '/ET_obs_timeseries' + fname + '.png')
+        plt.savefig(fname_long, dpi=150)
+        plt.close()
+
+
+#fig8
+        fig8 = plt.figure(figsize=(22, 13))
+        fontsize = 12
+
+        ax1 = plt.subplot2grid((2, 2), (0, 0), rowspan=1, colspan=1, fig=None)
+        pot_et_wtd_mod.plot(ax=ax1, y='pot_et_mod', x='wtd_obs', fontsize=fontsize, style=['.'], color='darkorange',markersize=4.5)
+        plt.ylabel('Model potential \n ET (mm/day)', fontsize=20)
+        plt.xlabel('In situ water table depth (m)', fontsize=20)
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        ax2 = plt.subplot2grid((2, 2), (1, 0), rowspan=1, colspan=1, fig=None)
+        pot_et_wtd_obs.plot(ax=ax2, y='pot_et_obs', x='wtd_obs', fontsize=fontsize, style=['.'], color='sandybrown',markersize=4.5)
+        plt.ylabel('In situ potential\n  ET (mm/day)', fontsize=20)
+        plt.xlabel('In situ water table depth (m)', fontsize=20)
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        ax3 = plt.subplot2grid((2, 2), (0, 1), rowspan=1, colspan=1, fig=None)
+        norm_et_wtd_mod.plot(ax=ax3, y='et_norm_mod', x='wtd_obs', fontsize=fontsize, style=['.'], color='darkolivegreen',markersize=4.5)
+        plt.ylabel('Normalized ET with \n model ETpot (mm/day)', fontsize=20)
+        plt.xlabel('In situ water table depth (m)', fontsize=20)
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        ax4 = plt.subplot2grid((2, 2), (1, 1), rowspan=1, colspan=1, fig=None)
+        norm_et_wtd_obs.plot(ax=ax4, y='et_norm_obs', x='wtd_obs', fontsize=fontsize, style=['.'], color='limegreen',markersize=4.5)
+        plt.ylabel('Normalized ET with \n in situ ETpot (mm/day)', fontsize=20)
+        plt.xlabel('In situ water table depth (m)', fontsize=20)
+        #plt.ylim([0.5, 1.25])
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        plt.tight_layout()
+        fname = site
+        fname_long = os.path.join(outpath + '/potential_ET_WTD' + fname + '.png')
+        plt.savefig(fname_long, dpi=150)
+        plt.close()
+
+
+
+#fig9
+        RN = pd.concat([rn_mod[site], rn_obs[site]],axis=1)
+        RN.columns = ['rn_mod','rn_obs']
+        RN = RN[RN['rn_obs'].notna()] #removes all rows for each column with nan-values in column: rn_obs
+        TAIR = pd.concat([Tair_mod[site], Tair_obs[site]],axis=1)
+        TAIR.columns = ['tair_mod','tair_obs']
+        TAIR = TAIR[TAIR['tair_obs'].notna()] #removes all rows for each column with nan-values in column: rn_obs
+        RN2 = copy.deepcopy(RN)
+        TAIR2 = copy.deepcopy(TAIR)
+
+        """metric calculation overall"""
+        R_rn = metrics.Pearson_R(RN2)
+        bias_rn = metrics.bias(RN2)
+        abias_rn = bias_rn.abs()
+        R_ta = metrics.Pearson_R(TAIR2)
+        bias_ta = metrics.bias(TAIR2)
+        abias_ta = bias_ta.abs()
+
+        fig9 = plt.figure(figsize=(16, 8.5))
+        fontsize = 12
+
+        ax1 = plt.subplot2grid((2, 1), (0, 0), rowspan=1, fig=None)
+        RN.plot(ax=ax1, fontsize=fontsize, style=['-', '-'], color=color, linewidth=0.9, markersize=3,
+                       xlim=Xlim_wtd)
+        plt.ylabel('Rnet')
+
+        Title = site + '\n' + 'R (Rn) = ' + str(R_rn[0]) + ',  abs_bias (Rn) = ' + str(abias_rn[0]) + ',  bias (Rn) = ' + str(bias_rn[0])
+        plt.title(Title)
+
+        ax2 = plt.subplot2grid((2, 1), (1, 0), rowspan=1, fig=None)
+        TAIR.plot(ax=ax2, fontsize=fontsize, style=['-', '-'], color=color, linewidth=0.9, markersize=3, xlim=Xlim_wtd)
+        plt.ylabel('Tair')
+
+        Title = site + '\n' + 'R (Tair) = ' + str(R_ta[0]) + ',  abs_bias (Tair) = ' + str(abias_ta[0]) + ',  bias (Tair) = ' + str(bias_ta[0])
+        plt.title(Title)
+
+        plt.tight_layout()
+        fname = site
+        fname_long = os.path.join(outpath + '/rn-tair' + fname + '.png')
+        plt.savefig(fname_long, dpi=150)
+        plt.close()
+
 def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, exp, outpath):
 
     # Initiate dataframe to store metrics in of wtd
@@ -641,9 +837,25 @@ def plot_skillmetrics_comparison_wtd_multimodel(wtd_obs, wtd_mod, precip_obs, ex
     df_metrics = pd.DataFrame(index=INDEX, columns=COL, dtype=object)
 
     for c,site in enumerate(wtd_obs.columns):
+        df_tmp = pd.concat((wtd_obs[site], wtd_mod[1][site]))
+        df_tmp.columns = ['In-situ', 'WHITELIST']
+        try:
+            df_tmp = pd.concat((df_tmp, wtd_mod[2][site]),axis=1)
+            df_tmp.columns = ['In-situ','WHITELIST','$PEATCLSM_{T,Natural}$ - IN']
+        except:
+            df_tmp =df_tmp
 
-        df_tmp = pd.concat((wtd_obs[site], wtd_mod[1][site], wtd_mod[2][site],wtd_mod[3][site]),axis=1)
-        df_tmp.columns = ['In-situ','$PEATCLSM_N$','$PEATCLSM_{T,Natural}$','$PEATCLSM_{T,Drained}$']
+        try:
+            df_tmp = pd.concat((df_tmp, wtd_mod[3][site]),axis=1)
+            df_tmp.columns = ['In-situ','WHITELIST','$PEATCLSM_{T,Natural}$ - CO']
+        except:
+            df_tmp =df_tmp
+
+        try:
+            df_tmp = pd.concat((df_tmp, wtd_mod[2][site] , wtd_mod[3][site] ), axis=1)
+            df_tmp.columns = ['In-situ', 'PEATCLSM_{N}', '$PEATCLSM_{T,Natural}$ ', '$PEATCLSM_{T,Drained}$']
+        except:
+            df_tmp = df_tmp
 
         df_tmp2 = copy.deepcopy(df_tmp)
 

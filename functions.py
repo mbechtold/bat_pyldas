@@ -97,7 +97,9 @@ def read_et_data(insitu_path, mastertable_filename, exp, domain, root):
         folder_rn = insitu_path + '/ET/rn/'
         folder_sh = insitu_path + '/ET/sh/'
         folder_le = insitu_path + '/ET/le/'
+        folder_Tair = insitu_path + '/ET/tair/'
         folder_wtd = insitu_path + '/WTD/'
+
 
         #load csv file for et
         try:
@@ -177,6 +179,26 @@ def read_et_data(insitu_path, mastertable_filename, exp, domain, root):
             print("some other reason for no data for " + site_ID + " in " + filename_rn)
 
 
+        # load csv file of tair
+        try:
+            if isinstance(find_files(folder_Tair, site_ID), str):
+                filename_Tair = find_files(folder_Tair, site_ID)
+                print(filename_Tair)
+
+            else:
+                flist = find_files(folder_Tair, site_ID)
+                for f in flist:
+                    if f.count('aily') >= 1:
+                        filename_rn = f
+        except:
+            print(site_ID + " does not have a Tair csv file with data.")
+            continue
+            # check for empty path
+        if len(filename_Tair) < 10 or filename_Tair.endswith('csv') != True or filename_Tair.count('WTD') >= 1:
+            print("checking ... " + site_ID + " " + filename_Tair)
+            print("some other reason for no data for " + site_ID + " in " + filename_Tair)
+
+
         # load csv file of sh
         try:
             if isinstance(find_files(folder_sh, site_ID), str):
@@ -232,6 +254,8 @@ def read_et_data(insitu_path, mastertable_filename, exp, domain, root):
             print("checking ... " + site_ID + " " + filename_wtd)
             print("some other reason for no data for " + site_ID + " in " + filename_wtd)
 
+
+
             # cumbersome first site, next sites ... to be simplified ...
         if first_site == True:
 
@@ -278,6 +302,17 @@ def read_et_data(insitu_path, mastertable_filename, exp, domain, root):
             rn_obs.columns = ['time', site_ID]
             rn_obs['time'] = pd.to_datetime(rn_obs['time'])
             rn_obs = rn_obs.set_index('time')
+
+            # Load in situ Tair data
+            print("reading ... " + filename_Tair)
+            Tair_obs = pd.read_csv(filename_Tair)
+            if Tair_obs.shape[1] == 1:
+                print("Tair csv file with semicolon ...")
+                Tair_obs = pd.read_csv(filename_Tair, sep=';')
+            Tair_obs.columns = ['time', site_ID]
+            Tair_obs['time'] = pd.to_datetime(Tair_obs['time'])
+            Tair_obs = Tair_obs.set_index('time')
+
 
             # Load in situ LE data
             print("reading ... " + filename_le)
@@ -340,6 +375,12 @@ def read_et_data(insitu_path, mastertable_filename, exp, domain, root):
             wtd_obs.columns = ['time', site_ID]
             wtd_obs['time'] = pd.to_datetime(wtd_obs['time'])
             wtd_obs = wtd_obs.set_index('time')
+
+            # Load model ETpot calculation data
+            ghflux_mod = io.read_ts('ghflux',lon,lat,lonlat=True)
+            Psurf_mod = io.read_ts('Psurf',lon,lat,lonlat=True)
+            Tair_mod = io.read_ts('Tair',lon,lat,lonlat=True)
+
 
         else:
             # Load in situ ET data
@@ -411,6 +452,16 @@ def read_et_data(insitu_path, mastertable_filename, exp, domain, root):
             rn_obs_tmp.columns = ['time', site_ID]
             rn_obs_tmp['time'] = pd.to_datetime(rn_obs_tmp['time'])
             rn_obs_tmp = rn_obs_tmp.set_index('time')
+
+            # Load in situ Tair data
+            print("reading ... " + filename_Tair)
+            Tair_obs_tmp = pd.read_csv(filename_Tair)
+            if Tair_obs_tmp.shape[1] == 1:
+                print("Tair csv file with semicolon ...")
+                Tair_obs_tmp = pd.read_csv(filename_Tair, sep=';')
+            Tair_obs_tmp.columns = ['time', site_ID]
+            Tair_obs_tmp['time'] = pd.to_datetime(Tair_obs_tmp['time'])
+            Tair_obs_tmp = Tair_obs_tmp.set_index('time')
 
             # Load in situ LE data
             print("reading ... " + filename_le)
@@ -526,6 +577,27 @@ def read_et_data(insitu_path, mastertable_filename, exp, domain, root):
             if False in no_overlap_wtd.values:
                 wtd_obs = pd.concat((wtd_obs, wtd_obs_tmp), axis=1)
 
+            # Load model ETpot calculation data
+            ghflux_mod_tmp = io.read_ts('ghflux',lon,lat,lonlat=True)
+            Psurf_mod_tmp = io.read_ts('Psurf',lon,lat,lonlat=True)
+            Tair_mod_tmp = io.read_ts('Tair',lon,lat,lonlat=True)
+
+            df_check_ETo = pd.concat((et_obs_tmp,ghflux_mod_tmp), axis=1)
+            no_overlap_ghflux = pd.isnull(df_check_ETo).any(axis=1)
+
+            if False in no_overlap_ghflux.values:
+                ghflux_mod = pd.concat((ghflux_mod, ghflux_mod_tmp), axis=1)
+                Psurf_mod = pd.concat((Psurf_mod, Psurf_mod_tmp), axis=1)
+
+            # Check if overlapping data in Tair.
+            df_check_Tair = pd.concat((Tair_obs_tmp, Tair_mod_tmp), axis=1)
+            no_overlap_Tair = pd.isnull(df_check_Tair).any(axis=1)
+
+            if False in no_overlap_Tair.values:
+                Tair_obs = pd.concat((Tair_obs, Tair_obs_tmp), axis=1)
+                Tair_mod = pd.concat((Tair_mod, Tair_mod_tmp), axis=1)
+
+
 
     et_mod = pd.DataFrame(et_mod)
     et_mod.columns = et_obs.columns
@@ -573,7 +645,14 @@ def read_et_data(insitu_path, mastertable_filename, exp, domain, root):
 
     wtd_obs = pd.DataFrame(wtd_obs)
 
-    return et_obs, et_mod, ee_obs, ee_mod, br_obs, br_mod, rn_obs, rn_mod, sh_obs, sh_mod, le_obs, le_mod, zbar_mod, eveg_mod, esoi_mod, eint_mod, wtd_obs
+    ghflux_mod = pd.DataFrame(ghflux_mod)
+    ghflux_mod.columns = et_obs.columns
+    Psurf_mod = pd.DataFrame(Psurf_mod)
+    Psurf_mod.columns = et_obs.columns
+    Tair_mod = pd.DataFrame(Tair_mod)
+    Tair_mod.columns = Tair_obs.columns
+
+    return et_obs, et_mod, ee_obs, ee_mod, br_obs, br_mod, rn_obs, rn_mod, sh_obs, sh_mod, le_obs, le_mod, zbar_mod, eveg_mod, esoi_mod, eint_mod, wtd_obs, ghflux_mod, Psurf_mod, Tair_mod, Tair_obs
 
 
 def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
@@ -640,6 +719,7 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
     poros[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['poros'].values
 
     first_site = True
+    whitelist_coordinates = []
 
     for i,site_ID in enumerate(master_table.iloc[:,0]):
 
@@ -717,6 +797,12 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
             filename_precip=''
             print(site_ID + " does not have a precipitation csv file with data.")
 
+        #to obtain the tile coordinates for whitlist runs
+
+        #j = io.grid.lonlat2tilenum(lon,lat)
+        #site_coordinate = io.grid.tilecoord['tile_id'][j]
+        #whitelist_coordinates.append(site_coordinate)
+
         # cumbersome first site, next sides ... to be simplified ...
         if first_site == True:
             # Load in situ data.
@@ -748,12 +834,14 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
                 first_site = False
 
             # Load model precip data. --> only simulated for natural so keep natural one
-            try:
-                io2=LDAS_io('daily', exp=exp, domain=domain, root=root)
-                precip_mod = io2.read_ts('Rainf', lon, lat, lonlat=True)
-            except:
-                precip_mod = wtd_mod.copy()
-                precip_mod[site_ID]=-15
+            #try:
+            #    io2 = LDAS_io('daily', exp=exp, domain=domain, root=root)
+            #    precip_mod_tmp = io2.read_ts('RainF', lon, lat, lonlat=True)
+            #except:
+            #    precip_mod_tmp = wtd_mod_tmp.copy()
+            #    precip_mod_tmp[site_ID] = -15
+            precip_mod = wtd_mod.copy()
+            precip_mod[site_ID] = -15
 
             # Check if overlapping data.
             df_check = pd.concat((precip_obs,precip_mod), axis=1)
@@ -795,13 +883,16 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
             df_check_wtd = pd.concat((wtd_obs_tmp,wtd_mod_tmp), axis=1)
             no_overlap_wtd = pd.isnull(df_check_wtd).any(axis=1)
 
-            try:
-                # Load model precip data.
-                io2 = LDAS_io('daily', exp=exp, domain=domain, root=root)
-                precip_mod_tmp = io2.read_ts('Rainf', lon, lat, lonlat=True)
-            except:
-                precip_mod_tmp = wtd_mod_tmp.copy()
-                precip_mod_tmp[site_ID] = -15
+            #try:
+            #    # Load model precip data.
+            #    io2 = LDAS_io('daily', exp=exp, domain=domain, root=root)
+            #    precip_mod_tmp = io2.read_ts('RainF', lon, lat, lonlat=True)
+            #except:
+            #    precip_mod_tmp = wtd_mod_tmp.copy()
+            #    precip_mod_tmp[site_ID] = -15
+            precip_mod_tmp = wtd_mod_tmp.copy()
+            precip_mod_tmp[site_ID] = -15
+
             # Check if overlapping data.
             #df_check = pd.concat((precip_obs_tmp, precip_mod_tmp), axis=1)
             df_check = pd.concat((precip_obs_tmp.loc[~precip_obs_tmp.index.duplicated(keep='first')],precip_mod_tmp), axis=1)
@@ -817,7 +908,7 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
             if False in no_overlap.values:
                 #precip_obs = pd.concat((precip_obs, precip_obs_tmp), axis=1)
                 precip_obs = pd.concat((precip_obs_tmp.loc[~precip_obs_tmp.index.duplicated(keep='first')],precip_obs), axis=1)
-                precip_mod = pd.concat((precip_mod, precip_mod_tmp), axis=1)
+                precip_mod = pd.concat((precip_mod_tmp.loc[~precip_mod_tmp.index.duplicated(keep='first')],precip_mod), axis=1)
 
     wtd_mod = pd.DataFrame(wtd_mod)
     wtd_mod.columns = wtd_obs.columns
@@ -827,6 +918,9 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
 
  #Sebastian added   #to create the csv files for Susan Page
     #wtd_mod_export_csv = wtd_mod.to_csv (r'/data/leuven/317/vsc31786/peatland_data/tropics/WTD/Sipalaga/processed/WTD/model_WTD/model_WTD_Natural.csv', index = True, header=True)
+    #whitelist_coordinates = pd.DataFrame(whitelist_coordinates)
+    #whitelist_coordinates.to_csv(r'/data/leuven/317/vsc31786/projects/TROPICS/WHITELIST_M09_PEATCLSMTN_v01/whitelist/SMAP_EASEv2_M09/whitelisttilescongo.csv',index=False, header=False)
+
     return wtd_obs, wtd_mod, precip_obs, precip_mod
 
 #################################################################
