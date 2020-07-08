@@ -129,7 +129,7 @@ def plot_catparams(exp, domain, root, outpath):
         figure_single_default(data=data,lons=lons,lats=lats,cmin=cmin,cmax=cmax,llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
                               llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,outpath=outpath,exp=exp,fname=fname,plot_title=param)
 
-def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_mod, rn_obs, rn_mod, sh_obs, sh_mod, le_obs, le_mod, zbar_mod, eveg_mod, esoi_mod, eint_mod, wtd_obs, ghflux_mod, Psurf_mod, Tair_mod, Tair_obs, exp, outpath):
+def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_mod, rn_obs, rn_mod, sh_obs, sh_mod, le_obs, le_mod, zbar_mod, eveg_mod, esoi_mod, eint_mod, wtd_obs, ghflux_mod, Psurf_mod, Tair_mod, Tair_obs, AR1, AR2, AR4, sfmc, exp, outpath):
 
     INDEX = et_obs.columns
     COL = ['bias (m)', 'ubRMSD (m)', 'Pearson_R (-)', 'RMSD (m)','abs_bias (m)']
@@ -588,6 +588,101 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         fname_long = os.path.join(outpath + '/rn-tair' + fname + '.png')
         plt.savefig(fname_long, dpi=150)
         plt.close()
+
+#fig10
+        Figure1 = plt.figure(figsize=(20, 7.5))
+        fontsize = 12
+        zbar = zbar_mod[site]
+        AR_all = pd.concat([AR1[site], AR2[site], AR4[site], zbar], axis=1)
+        AR_all.columns = ['AR1', 'AR2', 'AR4','zbar']
+
+        ax1 = plt.subplot2grid((1, 3), (0, 0), rowspan=1, colspan=1, fig=None)
+        AR_all.plot(ax=ax1, y='AR1', x='zbar', fontsize=fontsize, style=['.'], color='g',markersize=4)
+        plt.ylabel('AR1 [-]', fontsize=20)
+        plt.xlabel('Modeled water table depth (m)', fontsize=20)
+        plt.ylim([0, 1])
+        plt.xlim([-1,0])
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        ax2 = plt.subplot2grid((1, 3), (0, 1), rowspan=1, colspan=1, fig=None)
+        AR_all.plot(ax=ax2, y='AR2', x='zbar', fontsize=fontsize, style=['.'], color='g',markersize=4)
+        plt.ylabel('AR2 [-]', fontsize=20)
+        plt.xlabel('Modeled water table depth (m)', fontsize=20)
+        plt.ylim([0, 1])
+        plt.xlim([-1,0])
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        ax3 = plt.subplot2grid((1, 3), (0, 2), rowspan=1, colspan=1, fig=None)
+        AR_all.plot(ax=ax3, y='AR4', x='zbar', fontsize=fontsize, style=['.'], color='g',markersize=4)
+        plt.ylabel('AR4 [-]', fontsize=20)
+        plt.xlabel('Modeled water table depth (m)', fontsize=20)
+        plt.ylim([0, 1])
+        plt.xlim([-1,0])
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        plt.tight_layout()
+        fname = site
+        fname_long = os.path.join(outpath + 'ARvsWTD' + fname + '.png')
+        plt.savefig(fname_long, dpi=150)
+        plt.close()
+
+#fig11
+        Figure2 = plt.figure(figsize=(500, 200))
+        fontsize = 12
+        sfmc_all = pd.concat((et_mod[site], eveg_mod[site], esoi_mod[site], zbar_mod[site], sfmc[site]), axis=1, join='inner')
+        sfmc_all.columns = ['evap', 'eveg', 'esoi', 'zbar', 'sfmc']
+
+        ax1 = plt.subplot2grid((3, 2), (0, 0), rowspan=1, colspan=1, fig=None)
+        sfmc_all.plot(ax=ax1, y='sfmc', x='evap', fontsize=fontsize, style=['.'], color='g',markersize=4)
+        plt.ylabel('sfmc', fontsize=20)
+        plt.xlabel('evap', fontsize=20)
+        plt.ylim([0, 1])
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        ax2 = plt.subplot2grid((2, 2), (0, 1), rowspan=1, colspan=1, fig=None)
+        sfmc_all.plot(ax=ax2, y='sfmc', x='eveg', fontsize=fontsize, style=['.'], color='g',markersize=4)
+        plt.ylabel('sfmc', fontsize=20)
+        plt.xlabel('eveg', fontsize=20)
+        plt.ylim([0, 1])
+        plt.xlim([-0.1, 1])
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        ax3 = plt.subplot2grid((2, 2), (1, 0), rowspan=1, colspan=1, fig=None)
+        sfmc_all.plot(ax=ax3, y='sfmc', x='esoi', fontsize=fontsize, style=['.'], color='g',markersize=4)
+        plt.ylabel('sfmc', fontsize=20)
+        plt.xlabel('esoi', fontsize=20)
+        plt.ylim([0, 1])
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        ax4 = plt.subplot2grid((2, 2), (1, 1), rowspan=1, colspan=1, fig=None)
+        sfmc_all.plot(ax=ax4, y='sfmc', x='zbar', fontsize=fontsize, style=['.'], color='g',markersize=4)
+        plt.ylabel('sfmc', fontsize=20)
+        plt.xlabel('zbar', fontsize=20)
+        plt.ylim([0, 1])
+        plt.xlim([-1, 0])
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        ax5 = plt.subplot2grid((3, 2), (2, 0), rowspan=1, colspan=2, fig=None)
+        sfmc[site].plot(ax=ax5, fontsize=fontsize, style=['.'], color='g', markersize=4, xlim=Xlim_wtd)
+        plt.ylabel('sfmc', fontsize=20)
+        plt.ylim([0, 1])
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        plt.tight_layout()
+        fname = site
+        fname_long = os.path.join(outpath + 'sfmcvsall' + fname + '.png')
+        plt.show(Figure2)
+        plt.savefig(fname_long, dpi=150)
+        plt.close()
+
 
 def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, exp, outpath):
 

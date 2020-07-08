@@ -236,7 +236,7 @@ def read_et_data(insitu_path, mastertable_filename, exp, domain, root):
             print("checking ... " + site_ID + " " + filename_le)
             print("some other reason for no data for " + site_ID + " in " + filename_le)
 
-            # load csv file of le
+        # load csv file of wtd
         try:
             if isinstance(find_files(folder_wtd, site_ID), str):
                 filename_wtd = find_files(folder_wtd, site_ID)
@@ -275,6 +275,10 @@ def read_et_data(insitu_path, mastertable_filename, exp, domain, root):
             esoi_mod = io.read_ts('esoi', lon, lat, lonlat=True)
             eint_mod = io.read_ts('eint', lon, lat, lonlat=True)
             zbar_mod = io.read_ts('zbar', lon, lat, lonlat=True)
+            AR1 = io.read_ts('ar1', lon, lat, lonlat=True)
+            AR2 = io.read_ts('ar2', lon, lat, lonlat=True)
+            AR4 = 1 - AR1 - AR2
+            sfmc = io.read_ts('sfmc', lon, lat, lonlat=True)
 
             # Check if overlapping data.
             df_check = pd.concat((et_obs, et_mod), axis=1)
@@ -399,6 +403,11 @@ def read_et_data(insitu_path, mastertable_filename, exp, domain, root):
             esoi_mod_tmp = io.read_ts('esoi', lon, lat, lonlat=True)
             eint_mod_tmp = io.read_ts('eint', lon, lat, lonlat=True)
             zbar_mod_tmp = io.read_ts('zbar', lon, lat, lonlat=True)
+            AR1_tmp = io.read_ts('ar1', lon, lat, lonlat=True)
+            AR2_tmp = io.read_ts('ar2', lon, lat, lonlat=True)
+            AR4_tmp = 1 - AR1_tmp - AR2_tmp
+            sfmc_tmp = io.read_ts('sfmc', lon, lat, lonlat=True)
+
 
             # Check if overlaping data.
             df_check_et = pd.concat((et_obs_tmp,et_mod_tmp), axis=1)
@@ -431,6 +440,30 @@ def read_et_data(insitu_path, mastertable_filename, exp, domain, root):
 
             if False in no_overlap_zbar.values:
                 zbar_mod = pd.concat((zbar_mod, zbar_mod_tmp), axis=1)
+
+            df_check_ar1 = pd.concat((AR1,AR1_tmp), axis=1)
+            no_overlap_ar1 = pd.isnull(df_check_ar1).any(axis=1)
+
+            if False in no_overlap_ar1.values:
+                AR1 = pd.concat((AR1, AR1_tmp), axis=1)
+
+            df_check_ar2 = pd.concat((AR2,AR2_tmp), axis=1)
+            no_overlap_ar2 = pd.isnull(df_check_ar2).any(axis=1)
+
+            if False in no_overlap_ar2.values:
+                AR2 = pd.concat((AR2, AR2_tmp), axis=1)
+
+            df_check_ar4 = pd.concat((AR4,AR4_tmp), axis=1)
+            no_overlap_ar4 = pd.isnull(df_check_ar4).any(axis=1)
+
+            if False in no_overlap_ar4.values:
+                AR4 = pd.concat((AR4, AR4_tmp), axis=1)
+
+            df_check_sfmc = pd.concat((sfmc,sfmc_tmp), axis=1)
+            no_overlap_sfmc = pd.isnull(df_check_sfmc).any(axis=1)
+
+            if False in no_overlap_sfmc.values:
+                sfmc = pd.concat((sfmc, sfmc_tmp), axis=1)
 
 
             # Load in situ EE data
@@ -652,7 +685,16 @@ def read_et_data(insitu_path, mastertable_filename, exp, domain, root):
     Tair_mod = pd.DataFrame(Tair_mod)
     Tair_mod.columns = Tair_obs.columns
 
-    return et_obs, et_mod, ee_obs, ee_mod, br_obs, br_mod, rn_obs, rn_mod, sh_obs, sh_mod, le_obs, le_mod, zbar_mod, eveg_mod, esoi_mod, eint_mod, wtd_obs, ghflux_mod, Psurf_mod, Tair_mod, Tair_obs
+    AR1 = pd.DataFrame(AR1)
+    AR1.columns = wtd_obs.columns
+    AR2 = pd.DataFrame(AR2)
+    AR2.columns = wtd_obs.columns
+    AR4 = pd.DataFrame(AR4)
+    AR4.columns = wtd_obs.columns
+    sfmc = pd.DataFrame(sfmc)
+    sfmc.columns = wtd_obs.columns
+
+    return et_obs, et_mod, ee_obs, ee_mod, br_obs, br_mod, rn_obs, rn_mod, sh_obs, sh_mod, le_obs, le_mod, zbar_mod, eveg_mod, esoi_mod, eint_mod, wtd_obs, ghflux_mod, Psurf_mod, Tair_mod, Tair_obs, AR1, AR2, AR4, sfmc
 
 
 def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
@@ -833,15 +875,13 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
             if False in no_overlap.values:
                 first_site = False
 
-            # Load model precip data. --> only simulated for natural so keep natural one
-            #try:
-            #    io2 = LDAS_io('daily', exp=exp, domain=domain, root=root)
-            #    precip_mod_tmp = io2.read_ts('RainF', lon, lat, lonlat=True)
-            #except:
-            #    precip_mod_tmp = wtd_mod_tmp.copy()
-            #    precip_mod_tmp[site_ID] = -15
-            precip_mod = wtd_mod.copy()
-            precip_mod[site_ID] = -15
+            #Load model precip data. --> only simulated for natural so keep natural one
+            try:
+                io2 = LDAS_io('daily', exp=exp, domain=domain, root=root)
+                precip_mod = io2.read_ts('Rainf', lon, lat, lonlat=True)
+            except:
+                precip_mod = wtd_mod_tmp.copy()
+                precip_mod[site_ID] = -15
 
             # Check if overlapping data.
             df_check = pd.concat((precip_obs,precip_mod), axis=1)
@@ -883,15 +923,13 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
             df_check_wtd = pd.concat((wtd_obs_tmp,wtd_mod_tmp), axis=1)
             no_overlap_wtd = pd.isnull(df_check_wtd).any(axis=1)
 
-            #try:
-            #    # Load model precip data.
-            #    io2 = LDAS_io('daily', exp=exp, domain=domain, root=root)
-            #    precip_mod_tmp = io2.read_ts('RainF', lon, lat, lonlat=True)
-            #except:
-            #    precip_mod_tmp = wtd_mod_tmp.copy()
-            #    precip_mod_tmp[site_ID] = -15
-            precip_mod_tmp = wtd_mod_tmp.copy()
-            precip_mod_tmp[site_ID] = -15
+            try:
+                # Load model precip data.
+                io2 = LDAS_io('daily', exp=exp, domain=domain, root=root)
+                precip_mod_tmp = io2.read_ts('Rainf', lon, lat, lonlat=True)
+            except:
+                precip_mod_tmp = wtd_mod_tmp.copy()
+                precip_mod_tmp[site_ID] = -15
 
             # Check if overlapping data.
             #df_check = pd.concat((precip_obs_tmp, precip_mod_tmp), axis=1)
