@@ -2172,13 +2172,19 @@ def setup_grid_grid_for_plot(io):
     lons_1D = io.grid.ease_lons[tc['i_indg'].min():(tc['i_indg'].max()+1)]
     lats_1D = io.grid.ease_lats[tc['j_indg'].min():(tc['j_indg'].max()+1)]
 
-    latmin = io.images['lat'].min().values.item()
-    latmax = io.images['lat'].max().values.item()
-    lonmin = io.images['lon'].min().values.item()
-    lonmax = io.images['lon'].max().values.item()
+    try:
+        latmin = io.images['lat'].min().values.item()
+        latmax = io.images['lat'].max().values.item()
+        lonmin = io.images['lon'].min().values.item()
+        lonmax = io.images['lon'].max().values.item()
+    except:
+        latmin = io.grid.ease_lats.min()
+        latmax = io.grid.ease_lats.max()
+        lonmin = io.grid.ease_lons.min()
+        lonmax = io.grid.ease_lons.max()
 
-    domainlons = io.grid.ease_lons[np.min(io.grid.tilecoord.i_indg):(np.max(io.grid.tilecoord.i_indg)+1)]
-    domainlats = io.grid.ease_lats[np.min(io.grid.tilecoord.j_indg):(np.max(io.grid.tilecoord.j_indg)+1)]
+    domainlons = io.grid.ease_lons[np.min(io.grid.tilecoord.i_indg):(np.max(io.grid.tilecoord.i_indg) + 1)]
+    domainlats = io.grid.ease_lats[np.min(io.grid.tilecoord.j_indg):(np.max(io.grid.tilecoord.j_indg) + 1)]
     lonmin = domainlons[np.argmin(np.abs(domainlons-lonmin))]
     lonmax = domainlons[np.argmin(np.abs(domainlons-lonmax))]
     latmin = domainlats[np.argmin(np.abs(domainlats-latmin))]

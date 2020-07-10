@@ -601,7 +601,7 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         plt.ylabel('AR1 [-]', fontsize=20)
         plt.xlabel('Modeled water table depth (m)', fontsize=20)
         plt.ylim([0, 1])
-        plt.xlim([-1,0])
+        plt.xlim([-1.5,0])
         plt.xticks(fontsize=18)
         plt.yticks(fontsize=18)
 
@@ -610,7 +610,7 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         plt.ylabel('AR2 [-]', fontsize=20)
         plt.xlabel('Modeled water table depth (m)', fontsize=20)
         plt.ylim([0, 1])
-        plt.xlim([-1,0])
+        plt.xlim([-1.5,0])
         plt.xticks(fontsize=18)
         plt.yticks(fontsize=18)
 
@@ -619,18 +619,18 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         plt.ylabel('AR4 [-]', fontsize=20)
         plt.xlabel('Modeled water table depth (m)', fontsize=20)
         plt.ylim([0, 1])
-        plt.xlim([-1,0])
+        plt.xlim([-1.5,0])
         plt.xticks(fontsize=18)
         plt.yticks(fontsize=18)
 
         plt.tight_layout()
         fname = site
-        fname_long = os.path.join(outpath + 'ARvsWTD' + fname + '.png')
+        fname_long = os.path.join(outpath + '/ARvsWTD' + fname + '.png')
         plt.savefig(fname_long, dpi=150)
         plt.close()
 
 #fig11
-        Figure2 = plt.figure(figsize=(500, 200))
+        Figure2 = plt.figure(figsize=(30, 20))
         fontsize = 12
         sfmc_all = pd.concat((et_mod[site], eveg_mod[site], esoi_mod[site], zbar_mod[site], sfmc[site]), axis=1, join='inner')
         sfmc_all.columns = ['evap', 'eveg', 'esoi', 'zbar', 'sfmc']
@@ -643,16 +643,15 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         plt.xticks(fontsize=18)
         plt.yticks(fontsize=18)
 
-        ax2 = plt.subplot2grid((2, 2), (0, 1), rowspan=1, colspan=1, fig=None)
+        ax2 = plt.subplot2grid((3, 2), (0, 1), rowspan=1, colspan=1, fig=None)
         sfmc_all.plot(ax=ax2, y='sfmc', x='eveg', fontsize=fontsize, style=['.'], color='g',markersize=4)
         plt.ylabel('sfmc', fontsize=20)
         plt.xlabel('eveg', fontsize=20)
         plt.ylim([0, 1])
-        plt.xlim([-0.1, 1])
         plt.xticks(fontsize=18)
         plt.yticks(fontsize=18)
 
-        ax3 = plt.subplot2grid((2, 2), (1, 0), rowspan=1, colspan=1, fig=None)
+        ax3 = plt.subplot2grid((3, 2), (1, 0), rowspan=1, colspan=1, fig=None)
         sfmc_all.plot(ax=ax3, y='sfmc', x='esoi', fontsize=fontsize, style=['.'], color='g',markersize=4)
         plt.ylabel('sfmc', fontsize=20)
         plt.xlabel('esoi', fontsize=20)
@@ -660,7 +659,7 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         plt.xticks(fontsize=18)
         plt.yticks(fontsize=18)
 
-        ax4 = plt.subplot2grid((2, 2), (1, 1), rowspan=1, colspan=1, fig=None)
+        ax4 = plt.subplot2grid((3, 2), (1, 1), rowspan=1, colspan=1, fig=None)
         sfmc_all.plot(ax=ax4, y='sfmc', x='zbar', fontsize=fontsize, style=['.'], color='g',markersize=4)
         plt.ylabel('sfmc', fontsize=20)
         plt.xlabel('zbar', fontsize=20)
@@ -678,8 +677,7 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
 
         plt.tight_layout()
         fname = site
-        fname_long = os.path.join(outpath + 'sfmcvsall' + fname + '.png')
-        plt.show(Figure2)
+        fname_long = os.path.join(outpath + '/sfmcvsall' + fname + '.png')
         plt.savefig(fname_long, dpi=150)
         plt.close()
 
@@ -1133,51 +1131,55 @@ def plot_peat_and_sites(exp, domain, root, outpath):
     fname='01b_'+param
     cmin = 0
     cmax = 1
-    title='Peatland distribution'
+    title='Peatland distribution and tropical in situ sites'
     # open figure
-    figsize = (0.85*13, 0.85*10)
-    fontsize = 13
+    figsize = (45,20)
+    fontsize = 14
     f = plt.figure(num=None, figsize=figsize, dpi=300, facecolor='w', edgecolor='k')
-    cmap = matplotlib.colors.ListedColormap([[255./255,193./255,7./255],[30./255,136./255,229./255]])
+    #cmap = matplotlib.colors.ListedColormap([[255./255,193./255,7./255],[30./255,136./255,229./255]])
     #cmap = 'jet'
     cbrange = (cmin, cmax)
-    ax=plt.subplot(3,1,3)
+    ax=plt.subplot(1,1,1)
     plt_img=np.ma.masked_invalid(data)
-    m=Basemap(projection='merc',llcrnrlat=llcrnrlat,urcrnrlat=urcrnrlat,llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,resolution='l')
+    m=Basemap(projection='cea',llcrnrlat=llcrnrlat,urcrnrlat=urcrnrlat,llcrnrlon=llcrnrlon,urcrnrlon=urcrnrlon,resolution='i')
     #m=Basemap(projection='merc',llcrnrlat=llcrnrlat,urcrnrlat=urcrnrlat,llcrnrlon=-170.,urcrnrlon=urcrnrlon,resolution='l')
-    m.drawcoastlines(linewidth=0.5)
-    m.drawcountries(linewidth=0.5)
+    m.drawcoastlines(linewidth=0.3)
+    m.drawcountries(linewidth=0.3)
     parallels=np.arange(-80.0,81,5.)
-    m.drawparallels(parallels,linewidth=0.5,labels=[True,False,False,False])
+    m.drawparallels(parallels,linewidth=0.2,labels=[True,False,False,False], color = 'lightgrey')
     meridians=np.arange(0.,351.,20.)
-    m.drawmeridians(meridians,linewidth=0.5,labels=[False,False,False,True])
-    m.readshapefile('/data/leuven/317/vsc31786/gis/permafrost/permafrost_boundary', 'permafrost_boundary',linewidth=1.3,color=(0./255,0./255,0./255))
+    m.drawmeridians(meridians,linewidth=0.2,labels=[False,False,False,True], color = 'lightgrey')
+    # m.readshapefile('/data/leuven/317/vsc31786/gis/permafrost/permafrost_boundary', 'permafrost_boundary',linewidth=1.3,color=(0./255,0./255,0./255))
     # load peatland sites
-    sites = pd.read_csv('/data/leuven/317/vsc31786/FIG_tmp/00DA/20190228_M09/cluster_radius_2_bog.txt',sep=',')
+    # sites = pd.read_csv('/data/leuven/317/vsc31786/FIG_tmp/00DA/20190228_M09/cluster_radius_2_bog.txt',sep=',')
     #http://lagrange.univ-lyon1.fr/docs/matplotlib/users/colormapnorms.html
     #lat=48.
     #lon=51.0
-    x,y=m(sites['Lon'].values,sites['Lat'].values)
-    if np.mean(lats)>40:
-        m.plot(x,y,'.',color=(0./255,0./255,0./255),markersize=12,markeredgewidth=1.5,mfc='none')
+    #x,y=m(sites['Lon'].values,sites['Lat'].values)
+    #if np.mean(lats)>40:
+    #    m.plot(x,y,'.',color=(0./255,0./255,0./255),markersize=12,markeredgewidth=1.5,mfc='none')
+    #else:
+    insitu_path = '/data/leuven/317/vsc31786/peatland_data/tropics/WTD'
+    mastertable_filename = 'WTD_TROPICS_MASTER_TABLE_ALLDorN.csv'
+    filenames = find_files(insitu_path, mastertable_filename)
+    if isinstance(find_files(insitu_path, mastertable_filename),str):
+        master_table = pd.read_csv(filenames, sep =';')
     else:
-        insitu_path = '/data/leuven/317/vsc31786/peatland_data/tropics/WTD'
-        mastertable_filename = 'WTD_TROPICS_MASTER_TABLE.csv'
-        filenames = find_files(insitu_path, mastertable_filename)
-        if isinstance(find_files(insitu_path, mastertable_filename),str):
-            master_table = pd.read_csv(filenames, sep =';')
-        else:
-            for filename in filenames:
-                if filename.endswith('csv'):
-                    master_table = pd.read_csv(filename, sep =';')
-                    cond = master_table['comparison_yes']==1
-                    continue
-                else:
-                    logging.warning("some files, maybe swp files, exist that start with master table searchstring !")
-        x,y=m(master_table['lon'].values[cond],master_table['lat'].values[cond])
-        m.plot(x,y,'.',color=(0./255,0./255,0./255),markersize=12,markeredgewidth=1.5,mfc='none')
+        for filename in filenames:
+            if filename.endswith('csv'):
+                master_table = pd.read_csv(filename, sep =';')
+                cond = master_table['comparison_yes']==1
+                continue
+            else:
+                logging.warning("some files, maybe swp files, exist that start with master table searchstring !")
+    x,y=m(master_table['lon'].values[cond],master_table['lat'].values[cond])
+    if master_table['drained_U=uncertain'] is 'D':
+        color = ['m']
+    elif master_table['drained_U=uncertain'] is 'N':
+        color = ['g']
+    m.plot(x,y,'o', markerfacecolor='g',markeredgecolor= 'darkgreen', markersize=6, markeredgewidth=1)
 
-    im=m.pcolormesh(lons,lats,plt_img,cmap=cmap,latlon=True)
+    im=m.pcolormesh(lons,lats,plt_img,cmap='binary',latlon=True)
     im.set_clim(vmin=cbrange[0],vmax=cbrange[1])
     #cb=m.colorbar(im,"bottom",size="7%",pad="22%",shrink=0.5)
     #cb=matplotlib.pyplot.colorbar(im)
@@ -1193,7 +1195,7 @@ def plot_peat_and_sites(exp, domain, root, outpath):
         t.set_fontsize(fontsize)
         t.set_horizontalalignment('right')
         t.set_x(9.0)
-    tit=plt.title(title,fontsize=fontsize)
+    tit=plt.title(title,fontsize=20)
     #matplotlib.pyplot.text(1.0,1.0,mstats[i],horizontalalignment='right',verticalalignment='bottom',transform=ax.transAxes,fontsize=fontsize)
     fname_long = os.path.join(outpath, fname+'.png')
     plt.tight_layout()

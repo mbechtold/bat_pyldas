@@ -19,8 +19,9 @@ from bat_pyldas.functions import read_wtd_data
 from validation_good_practice.ancillary import metrics
 
 plot_maps = 0
+plot_map_peat_sites = 1
 plot_insitu = 0
-plot_ET_insitu = 1
+plot_ET_insitu = 0
 plot_insitu_multiple_exp = 0
 
 # maps
@@ -33,6 +34,14 @@ if plot_maps==1:
     plot_catparams(exp, domain, root, outpath)
     # Temporal mean and standard deviation of variables
     plot_all_variables_temporal_moments(exp, domain, root, outpath)
+
+if plot_map_peat_sites==1:
+    root='/staging/leuven/stg_00024/OUTPUT/michelb'
+    exp = 'PEATREV_PEATMAPHWSD'
+    domain = 'SMAP_EASEv2_M09'
+    outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison'
+    # Catchment Parameters
+    plot_peat_and_sites(exp, domain, root, outpath)
 
 # insitu
 if plot_insitu==1:
