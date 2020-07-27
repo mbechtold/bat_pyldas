@@ -22,6 +22,8 @@ from pyldas.interface import LDAS_io
 from netCDF4 import Dataset
 from pathlib import Path
 from pyldas.functions import find_files
+from matplotlib.patches import Polygon
+import matplotlib.pyplot as plt
 
 #SA added
 def read_et_data(insitu_path, mastertable_filename, exp, domain, root):
