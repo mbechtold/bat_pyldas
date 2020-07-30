@@ -877,12 +877,11 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
             if False in no_overlap.values:
                 first_site = False
 
-            #Load model precip data. --> only simulated for natural so keep natural one
+            #Load model precip data.
             try:
-                io2 = LDAS_io('daily', exp=exp, domain=domain, root=root)
-                precip_mod = io2.read_ts('Rainf', lon, lat, lonlat=True)
+                precip_mod = io.read_ts('Rainf', lon, lat, lonlat=True)
             except:
-                precip_mod = wtd_mod_tmp.copy()
+                precip_mod = wtd_mod.deepcopy()
                 precip_mod[site_ID] = -15
 
             # Check if overlapping data.
@@ -927,8 +926,7 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
 
             try:
                 # Load model precip data.
-                io2 = LDAS_io('daily', exp=exp, domain=domain, root=root)
-                precip_mod_tmp = io2.read_ts('Rainf', lon, lat, lonlat=True)
+                precip_mod_tmp = io.read_ts('Rainf', lon, lat, lonlat=True)
             except:
                 precip_mod_tmp = wtd_mod_tmp.copy()
                 precip_mod_tmp[site_ID] = -15
@@ -954,7 +952,7 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
     wtd_mod.columns = wtd_obs.columns
 
     precip_mod = pd.DataFrame(precip_mod)
-    precip_mod.columns = wtd_obs.columns
+    precip_mod.columns = precip_obs.columns
 
  #Sebastian added   #to create the csv files for Susan Page
     #wtd_mod_export_csv = wtd_mod.to_csv (r'/data/leuven/317/vsc31786/peatland_data/tropics/WTD/Sipalaga/processed/WTD/model_WTD/model_WTD_Natural.csv', index = True, header=True)

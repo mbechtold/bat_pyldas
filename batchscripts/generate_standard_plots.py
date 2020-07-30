@@ -20,20 +20,20 @@ from validation_good_practice.ancillary import metrics
 
 plot_maps = 0
 plot_map_peat_sites = 0
-plot_insitu = 0
-plot_ET_insitu = 1
+plot_insitu = 1
+plot_ET_insitu = 0
 plot_insitu_multiple_exp = 0
 
 # maps
 if plot_maps==1:
     root='/staging/leuven/stg_00024/OUTPUT/sebastiana'
-    exp = 'SAMERICA_M09_PEATCLSMTD_v01'
+    exp = 'INDONESIA2_M09_PEATCLSMTN_v01'
     domain = 'SMAP_EASEv2_M09'
-    outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/SA/Drained'
+    outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/whitelist/Natural/IN2'
     # Catchment Parameters
     plot_catparams(exp, domain, root, outpath)
     # Temporal mean and standard deviation of variables
-    plot_all_variables_temporal_moments(exp, domain, root, outpath)
+    #plot_all_variables_temporal_moments(exp, domain, root, outpath)
 
 if plot_map_peat_sites==1:
     root='/staging/leuven/stg_00024/OUTPUT/michelb'
@@ -47,9 +47,9 @@ if plot_map_peat_sites==1:
 if plot_insitu==1:
     ## in situ data
     root='/staging/leuven/stg_00024/OUTPUT/sebastiana'
-    exp = 'WHITELIST2_M09_PEATCLSMTN_v01'
+    exp = 'INDONESIA2_M09_PEATCLSMTN_v01'
     domain = 'SMAP_EASEv2_M09'
-    outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/whitelist/Natural/WR2'
+    outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/whitelist/Natural/IN2'
     os.makedirs(outpath,exist_ok=True)
     insitu_path = '/data/leuven/317/vsc31786/peatland_data/tropics'
     mastertable_filename = 'WTD_TROPICS_MASTER_TABLE_ALLDorN.csv'
@@ -59,9 +59,9 @@ if plot_insitu==1:
 
 if plot_ET_insitu == 1:
     root='/staging/leuven/stg_00024/OUTPUT/sebastiana'
-    exp = 'INDONESIA_M09_CLSM_v01'
+    exp = 'INDONESIA2_M09_PEATCLSMTN_v01'
     domain = 'SMAP_EASEv2_M09'
-    outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/IN/CLSM/Natural_sites/ET'
+    outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/whitelist/Natural/IN2/ET'
     os.makedirs(outpath,exist_ok=True)
     insitu_path = '/data/leuven/317/vsc31786/peatland_data/tropics'
     mastertable_filename = 'ET_TROPICS_MASTER_TABLE.csv'
