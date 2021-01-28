@@ -100,6 +100,7 @@ def read_et_data(insitu_path, mastertable_filename, exp, domain, root):
         folder_sh = insitu_path + '/ET/sh/'
         folder_le = insitu_path + '/ET/le/'
         folder_Tair = insitu_path + '/ET/tair/'
+        folder_vpd = insitu_path + '/ET/vpd/'
         folder_wtd = insitu_path + '/WTD/'
 
 
@@ -192,13 +193,15 @@ def read_et_data(insitu_path, mastertable_filename, exp, domain, root):
                 for f in flist:
                     if f.count('aily') >= 1:
                         filename_rn = f
+
+            # check for empty path
+            if len(filename_Tair) < 10 or filename_Tair.endswith('csv') != True or filename_Tair.count('WTD') >= 1:
+                print("checking ... " + site_ID + " " + filename_Tair)
+                print("some other reason for no data for " + site_ID + " in " + filename_Tair)
+
         except:
             print(site_ID + " does not have a Tair csv file with data.")
-            continue
-            # check for empty path
-        if len(filename_Tair) < 10 or filename_Tair.endswith('csv') != True or filename_Tair.count('WTD') >= 1:
-            print("checking ... " + site_ID + " " + filename_Tair)
-            print("some other reason for no data for " + site_ID + " in " + filename_Tair)
+
 
 
         # load csv file of sh
@@ -211,13 +214,13 @@ def read_et_data(insitu_path, mastertable_filename, exp, domain, root):
                 for f in flist:
                     if f.count('aily') >= 1:
                         filename_sh = f
+                # check for empty path
+            if len(filename_sh) < 10 or filename_sh.endswith('csv') != True or filename_sh.count('WTD') >= 1:
+                print("checking ... " + site_ID + " " + filename_sh)
+                print("some other reason for no data for " + site_ID + " in " + filename_sh)
+
         except:
             print(site_ID + " does not have a SH csv file with data.")
-            continue
-            # check for empty path
-        if len(filename_sh) < 10 or filename_sh.endswith('csv') != True or filename_sh.count('WTD') >= 1:
-            print("checking ... " + site_ID + " " + filename_sh)
-            print("some other reason for no data for " + site_ID + " in " + filename_sh)
 
 
         # load csv file of le
@@ -230,13 +233,14 @@ def read_et_data(insitu_path, mastertable_filename, exp, domain, root):
                 for f in flist:
                     if f.count('aily') >= 1:
                         filename_le = f
+
+                # check for empty path
+            if len(filename_le) < 10 or filename_le.endswith('csv') != True or filename_le.count('WTD') >= 1:
+                print("checking ... " + site_ID + " " + filename_le)
+                print("some other reason for no data for " + site_ID + " in " + filename_le)
+
         except:
             print(site_ID + " does not have a LE csv file with data.")
-            continue
-            # check for empty path
-        if len(filename_le) < 10 or filename_le.endswith('csv') != True or filename_le.count('WTD') >= 1:
-            print("checking ... " + site_ID + " " + filename_le)
-            print("some other reason for no data for " + site_ID + " in " + filename_le)
 
         # load csv file of wtd
         try:
@@ -248,13 +252,32 @@ def read_et_data(insitu_path, mastertable_filename, exp, domain, root):
                 for f in flist:
                     if f.count('aily') >= 1:
                         filename_wtd = f
+                # check for empty path
+            if len(filename_wtd) < 10 or filename_wtd.endswith('csv') != True:
+                print("checking ... " + site_ID + " " + filename_wtd)
+                print("some other reason for no data for " + site_ID + " in " + filename_wtd)
+
         except:
             print(site_ID + " does not have a WTD csv file with data.")
-            continue
-            # check for empty path
-        if len(filename_wtd) < 10 or filename_wtd.endswith('csv') != True:
-            print("checking ... " + site_ID + " " + filename_wtd)
-            print("some other reason for no data for " + site_ID + " in " + filename_wtd)
+
+
+        # load csv file of vpd
+        try:
+            if isinstance(find_files(folder_vpd, site_ID), str):
+                filename_vpd = find_files(folder_vpd, site_ID)
+                print(filename_vpd)
+            else:
+                flist = find_files(folder_vpd, site_ID)
+                for f in flist:
+                    if f.count('aily') >= 1:
+                        filename_vpd = f
+                # check for empty path
+            if len(filename_wtd) < 10 or filename_vpd.endswith('csv') != True:
+                print("checking ... " + site_ID + " " + filename_vpd)
+                print("some other reason for no data for " + site_ID + " in " + filename_vpd)
+
+        except:
+            print(site_ID + " does not have a vpd csv file with data.")
 
 
 
@@ -281,6 +304,12 @@ def read_et_data(insitu_path, mastertable_filename, exp, domain, root):
             AR2 = io.read_ts('ar2', lon, lat, lonlat=True)
             AR4 = 1 - AR1 - AR2
             sfmc = io.read_ts('sfmc', lon, lat, lonlat=True)
+            rzmc = io.read_ts('rzmc', lon, lat, lonlat=True)
+            srfexc = io.read_ts('srfexc', lon, lat, lonlat=True)
+            rzexc = io.read_ts('rzexc', lon, lat, lonlat=True)
+            catdef= io.read_ts('catdef', lon, lat, lonlat=True)
+            Qair = io.read_ts('Qair',lon,lat,lonlat=True)
+            Wind = io.read_ts('Wind', lon, lat, lonlat=True)
 
             # Check if overlapping data.
             df_check = pd.concat((et_obs, et_mod), axis=1)
@@ -310,25 +339,31 @@ def read_et_data(insitu_path, mastertable_filename, exp, domain, root):
             rn_obs = rn_obs.set_index('time')
 
             # Load in situ Tair data
-            print("reading ... " + filename_Tair)
-            Tair_obs = pd.read_csv(filename_Tair)
-            if Tair_obs.shape[1] == 1:
-                print("Tair csv file with semicolon ...")
-                Tair_obs = pd.read_csv(filename_Tair, sep=';')
-            Tair_obs.columns = ['time', site_ID]
-            Tair_obs['time'] = pd.to_datetime(Tair_obs['time'])
-            Tair_obs = Tair_obs.set_index('time')
+            try:
+                print("reading ... " + filename_Tair)
+                Tair_obs = pd.read_csv(filename_Tair)
+                if Tair_obs.shape[1] == 1:
+                    print("Tair csv file with semicolon ...")
+                    Tair_obs = pd.read_csv(filename_Tair, sep=';')
+                Tair_obs.columns = ['time', site_ID]
+                Tair_obs['time'] = pd.to_datetime(Tair_obs['time'])
+                Tair_obs = Tair_obs.set_index('time')
+            except:
+                Tair_obs = et_obs
 
 
             # Load in situ LE data
-            print("reading ... " + filename_le)
-            le_obs = pd.read_csv(filename_le)
-            if le_obs.shape[1] == 1:
-                print("LE csv file with semicolon ...")
-                le_obs = pd.read_csv(filename_le, sep=';')
-            le_obs.columns = ['time', site_ID]
-            le_obs['time'] = pd.to_datetime(le_obs['time'])
-            le_obs = le_obs.set_index('time')
+            try:
+                print("reading ... " + filename_le)
+                le_obs = pd.read_csv(filename_le)
+                if le_obs.shape[1] == 1:
+                    print("LE csv file with semicolon ...")
+                    le_obs = pd.read_csv(filename_le, sep=';')
+                le_obs.columns = ['time', site_ID]
+                le_obs['time'] = pd.to_datetime(le_obs['time'])
+                le_obs = le_obs.set_index('time')
+            except:
+                le_obs = et_obs
 
             # Load model EE data.
             try:
@@ -387,6 +422,19 @@ def read_et_data(insitu_path, mastertable_filename, exp, domain, root):
             Psurf_mod = io.read_ts('Psurf',lon,lat,lonlat=True)
             Tair_mod = io.read_ts('Tair',lon,lat,lonlat=True)
 
+            # Load in situ vpd data
+            try:
+                print("reading ... " + filename_vpd)
+                vpd_obs = pd.read_csv(filename_vpd)
+                if vpd_obs.shape[1] == 1:
+                    print("vpd csv file with semicolon ...")
+                    vpd_obs = pd.read_csv(filename_vpd, sep=';')
+                vpd_obs.columns = ['time', site_ID]
+                vpd_obs['time'] = pd.to_datetime(vpd_obs['time'])
+                vpd_obs = vpd_obs.set_index('time')
+            except:
+                vpd_obs = et_obs
+
 
         else:
             # Load in situ ET data
@@ -409,7 +457,12 @@ def read_et_data(insitu_path, mastertable_filename, exp, domain, root):
             AR2_tmp = io.read_ts('ar2', lon, lat, lonlat=True)
             AR4_tmp = 1 - AR1_tmp - AR2_tmp
             sfmc_tmp = io.read_ts('sfmc', lon, lat, lonlat=True)
-
+            rzmc_tmp = io.read_ts('rzmc', lon, lat, lonlat=True)
+            srfexc_tmp = io.read_ts('srfexc', lon, lat, lonlat=True)
+            rzexc_tmp = io.read_ts('rzexc', lon, lat, lonlat=True)
+            catdef_tmp = io.read_ts('catdef', lon, lat, lonlat=True)
+            Qair_tmp = io.read_ts('Qair',lon,lat,lonlat=True)
+            Wind_tmp = io.read_ts('Wind', lon, lat, lonlat=True)
 
             # Check if overlaping data.
             df_check_et = pd.concat((et_obs_tmp,et_mod_tmp), axis=1)
@@ -466,6 +519,42 @@ def read_et_data(insitu_path, mastertable_filename, exp, domain, root):
 
             if False in no_overlap_sfmc.values:
                 sfmc = pd.concat((sfmc, sfmc_tmp), axis=1)
+
+            df_check_rzmc = pd.concat((rzmc, rzmc_tmp), axis=1)
+            no_overlap_rzmc = pd.isnull(df_check_rzmc).any(axis=1)
+
+            if False in no_overlap_rzmc.values:
+                rzmc = pd.concat((rzmc, rzmc_tmp), axis=1)
+
+            df_check_rzexc = pd.concat((rzexc, rzexc_tmp), axis=1)
+            no_overlap_rzexc = pd.isnull(df_check_rzexc).any(axis=1)
+
+            if False in no_overlap_rzexc.values:
+                rzexc = pd.concat((rzexc, rzexc_tmp), axis=1)
+
+            df_check_sfexc = pd.concat((srfexc,srfexc_tmp), axis=1)
+            no_overlap_sfexc = pd.isnull(df_check_sfexc).any(axis=1)
+
+            if False in no_overlap_sfexc.values:
+                srfexc = pd.concat((srfexc, srfexc_tmp), axis=1)
+
+            df_check_catdef = pd.concat((catdef,catdef_tmp), axis=1)
+            no_overlap_catdef = pd.isnull(df_check_catdef).any(axis=1)
+
+            if False in no_overlap_catdef.values:
+                catdef = pd.concat((catdef, catdef_tmp), axis=1)
+
+            df_check_Qair = pd.concat((Qair,Qair_tmp), axis=1)
+            no_overlap_Qair = pd.isnull(df_check_Qair).any(axis=1)
+
+            if False in no_overlap_Qair.values:
+                Qair = pd.concat((Qair, Qair_tmp), axis=1)
+
+            df_check_Wind = pd.concat((Wind,Wind_tmp), axis=1)
+            no_overlap_Wind = pd.isnull(df_check_Wind).any(axis=1)
+
+            if False in no_overlap_Wind.values:
+                Wind = pd.concat((Wind, Wind_tmp), axis=1)
 
 
             # Load in situ EE data
@@ -632,6 +721,23 @@ def read_et_data(insitu_path, mastertable_filename, exp, domain, root):
                 Tair_obs = pd.concat((Tair_obs, Tair_obs_tmp), axis=1)
                 Tair_mod = pd.concat((Tair_mod, Tair_mod_tmp), axis=1)
 
+            # Load in situ vpd data
+            print("reading ... " + filename_vpd)
+            vpd_obs_tmp = pd.read_csv(filename_vpd)
+            if vpd_obs_tmp.shape[1] == 1:
+                print("vpd csv file with semicolon ...")
+                vpd_obs_tmp = pd.read_csv(filename_vpd, sep=';')
+            vpd_obs_tmp.columns = ['time', site_ID]
+            vpd_obs_tmp['time'] = pd.to_datetime(vpd_obs_tmp['time'])
+            vpd_obs_tmp = vpd_obs_tmp.set_index('time')
+
+            # Check if overlapping data in vpd.
+            df_check_vpd = pd.concat((vpd_obs_tmp, et_mod_tmp), axis=1)
+            no_overlap_vpd = pd.isnull(df_check_vpd).any(axis=1)
+
+            if False in no_overlap_vpd.values:
+                vpd_obs = pd.concat((vpd_obs, vpd_obs_tmp), axis=1)
+
 
 
     et_mod = pd.DataFrame(et_mod)
@@ -671,8 +777,11 @@ def read_et_data(insitu_path, mastertable_filename, exp, domain, root):
         rn_mod = et_mod_copy
 
 
-    sh_mod = pd.DataFrame(sh_mod)
-    sh_mod.columns = sh_obs.columns
+    try:
+        sh_mod = pd.DataFrame(sh_mod)
+        sh_mod.columns = sh_obs.columns
+    except:
+        rn_mod = et_mod_copy
 
     le_mod = pd.DataFrame(le_mod)
     le_mod.columns = le_obs.columns
@@ -684,8 +793,11 @@ def read_et_data(insitu_path, mastertable_filename, exp, domain, root):
     ghflux_mod.columns = et_obs.columns
     Psurf_mod = pd.DataFrame(Psurf_mod)
     Psurf_mod.columns = et_obs.columns
-    Tair_mod = pd.DataFrame(Tair_mod)
-    Tair_mod.columns = Tair_obs.columns
+    try:
+        Tair_mod = pd.DataFrame(Tair_mod)
+        Tair_mod.columns = Tair_obs.columns
+    except:
+        Tair_mod = et_mod_copy
 
     AR1 = pd.DataFrame(AR1)
     AR1.columns = wtd_obs.columns
@@ -695,8 +807,20 @@ def read_et_data(insitu_path, mastertable_filename, exp, domain, root):
     AR4.columns = wtd_obs.columns
     sfmc = pd.DataFrame(sfmc)
     sfmc.columns = wtd_obs.columns
+    rzmc = pd.DataFrame(rzmc)
+    rzmc.columns = wtd_obs.columns
+    sfexc = pd.DataFrame(srfexc)
+    sfexc.columns = wtd_obs.columns
+    rzexc = pd.DataFrame(rzexc)
+    rzexc.columns = wtd_obs.columns
+    catdef = pd.DataFrame(catdef)
+    catdef.columns = wtd_obs.columns
+    Qair = pd.DataFrame(Qair)
+    Qair.columns = wtd_obs.columns
+    Wind = pd.DataFrame(Wind)
+    Wind.columns = wtd_obs.columns
 
-    return et_obs, et_mod, ee_obs, ee_mod, br_obs, br_mod, rn_obs, rn_mod, sh_obs, sh_mod, le_obs, le_mod, zbar_mod, eveg_mod, esoi_mod, eint_mod, wtd_obs, ghflux_mod, Psurf_mod, Tair_mod, Tair_obs, AR1, AR2, AR4, sfmc
+    return et_obs, et_mod, ee_obs, ee_mod, br_obs, br_mod, rn_obs, rn_mod, sh_obs, sh_mod, le_obs, le_mod, zbar_mod, eveg_mod, esoi_mod, eint_mod, wtd_obs, ghflux_mod, Psurf_mod, Tair_mod, Tair_obs, AR1, AR2, AR4, sfmc, rzmc, srfexc, rzexc, catdef, Qair, vpd_obs, Wind
 
 
 def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
@@ -890,6 +1014,23 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
             if False in no_overlap.values:
                 first_site = False
 
+            #Load model sfmc rzmc.
+            sfmc_mod = io.read_ts('sfmc', lon, lat, lonlat=True)
+            rzmc_mod = io.read_ts('rzmc', lon, lat, lonlat=True)
+            srfexc = io.read_ts('srfexc', lon, lat, lonlat=True)
+            rzexc = io.read_ts('rzexc', lon, lat, lonlat=True)
+            catdef = io.read_ts('catdef', lon, lat, lonlat=True)
+
+
+            df_check = pd.concat((wtd_obs,sfmc_mod), axis=1)
+            no_overlap = pd.isnull(df_check).any(axis=1)
+            if False in no_overlap.values:
+                first_site = False
+            df_check = pd.concat((wtd_obs,rzmc_mod), axis=1)
+            no_overlap = pd.isnull(df_check).any(axis=1)
+            if False in no_overlap.values:
+                first_site = False
+
         else:
             # Load in situ data.
             # wtd:
@@ -934,7 +1075,23 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
             # Check if overlapping data.
             #df_check = pd.concat((precip_obs_tmp, precip_mod_tmp), axis=1)
             df_check = pd.concat((precip_obs_tmp.loc[~precip_obs_tmp.index.duplicated(keep='first')],precip_mod_tmp), axis=1)
+            no_overlap_precip = pd.isnull(df_check).any(axis=1)
+
+            #Load model sfmc rzmc.
+            sfmc_mod_tmp = io.read_ts('sfmc', lon, lat, lonlat=True)
+            rzmc_mod_tmp = io.read_ts('rzmc', lon, lat, lonlat=True)
+            srfexc_tmp = io.read_ts('srfexc', lon, lat, lonlat=True)
+            rzexc_tmp = io.read_ts('rzexc', lon, lat, lonlat=True)
+            catdef_tmp = io.read_ts('catdef', lon, lat, lonlat=True)
+
+            df_check = pd.concat((wtd_obs_tmp,sfmc_mod_tmp), axis=1)
             no_overlap = pd.isnull(df_check).any(axis=1)
+            if False in no_overlap.values:
+                first_site = False
+            df_check = pd.concat((wtd_obs_tmp,rzmc_mod_tmp), axis=1)
+            no_overlap = pd.isnull(df_check).any(axis=1)
+            if False in no_overlap.values:
+                first_site = False
 
             if False in no_overlap_wtd.values:
                 first_site = False
@@ -943,10 +1100,18 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
                 wtd_obs = pd.concat((wtd_obs, wtd_obs_tmp), axis=1)
                 wtd_mod = pd.concat((wtd_mod, wtd_mod_tmp), axis=1)
 
-            if False in no_overlap.values:
+            if False in no_overlap_precip.values:
                 #precip_obs = pd.concat((precip_obs, precip_obs_tmp), axis=1)
                 precip_obs = pd.concat((precip_obs_tmp.loc[~precip_obs_tmp.index.duplicated(keep='first')],precip_obs), axis=1)
                 precip_mod = pd.concat((precip_mod_tmp.loc[~precip_mod_tmp.index.duplicated(keep='first')],precip_mod), axis=1)
+
+            if False in no_overlap.values:
+                rzmc_mod = pd.concat((rzmc_mod,rzmc_mod_tmp), axis=1)
+                sfmc_mod = pd.concat((sfmc_mod,sfmc_mod_tmp), axis=1)
+                srfexc = pd.concat((srfexc,srfexc_tmp),axis=1)
+                rzexc = pd.concat((rzexc, rzexc_tmp), axis=1)
+                catdef = pd.concat((catdef,catdef_tmp),axis=1)
+
 
     wtd_mod = pd.DataFrame(wtd_mod)
     wtd_mod.columns = wtd_obs.columns
@@ -954,12 +1119,25 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
     precip_mod = pd.DataFrame(precip_mod)
     precip_mod.columns = precip_obs.columns
 
+    rzmc_mod = pd.DataFrame(rzmc_mod)
+    rzmc_mod.columns = wtd_obs.columns
+
+    sfmc_mod = pd.DataFrame(sfmc_mod)
+    sfmc_mod.columns = wtd_obs.columns
+
+    srfexc = pd.DataFrame(srfexc)
+    srfexc.columns = wtd_obs.columns
+    rzexc = pd.DataFrame(rzexc)
+    rzexc.columns = wtd_obs.columns
+    catdef = pd.DataFrame(catdef)
+    catdef.columns = wtd_obs.columns
+
  #Sebastian added   #to create the csv files for Susan Page
     #wtd_mod_export_csv = wtd_mod.to_csv (r'/data/leuven/317/vsc31786/peatland_data/tropics/WTD/Sipalaga/processed/WTD/model_WTD/model_WTD_Natural.csv', index = True, header=True)
     #whitelist_coordinates = pd.DataFrame(whitelist_coordinates)
     #whitelist_coordinates.to_csv(r'/data/leuven/317/vsc31786/projects/TROPICS/WHITELIST_M09_PEATCLSMTN_v01/whitelist/SMAP_EASEv2_M09/whitelisttilescongo.csv',index=False, header=False)
 
-    return wtd_obs, wtd_mod, precip_obs, precip_mod
+    return wtd_obs, wtd_mod, precip_obs, precip_mod, sfmc_mod, rzmc_mod, srfexc, rzexc, catdef
 
 #################################################################
 #################################################################
@@ -2252,7 +2430,7 @@ def calc_tau_and_lag1_autocor(self):
     # Save file to disk and loat it as xarray Dataset into the class variable space
     dataset.close()
 
-def calc_anomaly(Ser, method='moving_average', output='anomaly', longterm=False):
+def calc_anomaly(Ser, method='moving_average', output='anomaly', longterm=True, window_size=31):
 
     if (output=='climatology')&(longterm is True):
         output = 'climSer'
@@ -2266,7 +2444,7 @@ def calc_anomaly(Ser, method='moving_average', output='anomaly', longterm=False)
     climSer = pd.Series(index=xSer.index)
 
     if not method in ['harmonic','mean','moving_average','ma']:
-        logging.info('Unknown method: %s' % (method))
+        logging.error('Unknown method: ' + method)
         return climSer
 
     if longterm is True:
@@ -2275,7 +2453,7 @@ def calc_anomaly(Ser, method='moving_average', output='anomaly', longterm=False)
         if method=='mean':
             clim = calc_clim_harmonic(xSer, n=0)
         if (method=='moving_average')|(method=='ma'):
-            clim = calc_clim_moving_average(xSer)
+            clim = calc_clim_moving_average(xSer, window_size=window_size)
         if output == 'climatology':
             return clim
         climSer[:] = clim[doys]
@@ -2288,13 +2466,67 @@ def calc_anomaly(Ser, method='moving_average', output='anomaly', longterm=False)
             if method == 'mean':
                 clim = calc_clim_harmonic(xSer[years == yr], n=0)
             if (method == 'moving_average') | (method == 'ma'):
-                clim = calc_clim_moving_average(xSer[years == yr])
+                clim = calc_clim_moving_average(xSer[years == yr], window_size=window_size)
             climSer[years == yr] = clim[doys[years == yr]].values
 
     if output == 'climSer':
         return climSer
 
+    climSer.name = xSer.name
     return xSer - climSer
+
+def calc_clim_moving_average(Ser, window_size=31, n_min=46, return_n=False):
+    """
+    Calculates the mean seasonal cycle as long-term mean within a moving average window.
+    Parameters
+    ----------
+    Ser : pd.Series w. DatetimeIndex
+        Timeseries of which the climatology shall be calculated.
+    window_size : int
+        Moving Average window size
+    n_min : int
+        Minimum number of data points to calculate average
+    return_n : boolean
+        If true, the number of data points over which is averaged is returned
+    Returns
+    -------
+    clim : pd.Series
+        climatology of Ser (without leap days)
+    n_days : pd.Series
+        the number of data points available within each window
+    """
+
+    xSer = Ser.dropna().copy()
+    doys = xSer.index.dayofyear.values
+
+    # in leap years, subtract 1 for all days after Feb 28
+    doys[xSer.index.is_leap_year & (doys > 59)] -= 1
+
+    clim_doys =  np.arange(365) + 1
+    clim = pd.Series(index=clim_doys)
+    n_data = pd.Series(index=clim_doys)
+
+    for doy in clim_doys:
+
+        # Avoid artifacts at start/end of year
+        tmp_doys = doys.copy()
+        if doy < window_size/2.:
+            tmp_doys[tmp_doys > 365 - (np.ceil(window_size/2.)-doy)] -= 365
+        if doy > 365 - (window_size/2. - 1):
+            tmp_doys[tmp_doys < np.ceil(window_size/2.) - (365-doy)] += 365
+
+        n_data[doy] = len(xSer[(tmp_doys >= doy - np.floor(window_size/2.)) & \
+                               (tmp_doys <= doy + np.floor(window_size/2.))])
+
+        if n_data[doy] >= n_min:
+            clim[doy] = xSer[(tmp_doys >= doy - np.floor(window_size/2.)) & \
+                             (tmp_doys <= doy + np.floor(window_size/2.))].values.mean()
+
+    if return_n is False:
+        return clim
+    else:
+        return clim, n_data
+
 
 def resample_merra2(part=1, parts=1):
     """

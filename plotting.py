@@ -3,7 +3,7 @@ import platform
 if platform.system() == 'Linux':
     import matplotlib
 
-    matplotlib.use('TkAgg')
+    matplotlib.use('QT4Agg')
 import os
 import xarray as xr
 import pandas as pd
@@ -13,18 +13,21 @@ import seaborn as sns
 import math as math
 import matplotlib.pyplot as plt
 from sklearn import linear_model
-from mpl_toolkits.basemap import Basemap
+#from mpl_toolkits.basemap import Basemap
 from matplotlib.colors import LogNorm
 from pyldas.grids import EASE2
 from pyldas.interface import LDAS_io
 from bat_pyldas.functions import *
 from scipy.stats import zscore
+import scipy.interpolate
+from statsmodels.nonparametric.smoothers_lowess import lowess as  sm_lowess
 from scipy.interpolate import interp2d
 from validation_good_practice.ancillary import metrics
 import sys
 from scipy import stats
 import pymannkendall as mk
 import copy
+import statsmodels.api as sm
 
 
 def assign_units(var):
@@ -116,6 +119,7 @@ def plot_catparams(exp, domain, root, outpath):
     tg = io.grid.tilegrids
 
     params = LDAS_io(exp=exp, domain=domain, root=root).read_params('catparam')
+    cmap = 'jet_r'
 
     for param in params:
 
@@ -133,12 +137,12 @@ def plot_catparams(exp, domain, root, outpath):
         figure_single_default(data=data, lons=lons, lats=lats, cmin=cmin, cmax=cmax, llcrnrlat=llcrnrlat,
                               urcrnrlat=urcrnrlat,
                               llcrnrlon=llcrnrlon, urcrnrlon=urcrnrlon, outpath=outpath, exp=exp, fname=fname,
-                              plot_title=param)
+                              plot_title=param, cmap=cmap)
 
 
 def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_mod, rn_obs, rn_mod, sh_obs, sh_mod,
                                     le_obs, le_mod, zbar_mod, eveg_mod, esoi_mod, eint_mod, wtd_obs, ghflux_mod,
-                                    Psurf_mod, Tair_mod, Tair_obs, AR1, AR2, AR4, sfmc, exp, outpath):
+                                    Psurf_mod, Tair_mod, Tair_obs, AR1, AR2, AR4, sfmc, rzmc, srfexc, rzexc, catdef, Qair, vpd_obs, Wind, exp, outpath):
     INDEX = et_obs.columns
     COL = ['bias (m)', 'ubRMSD (m)', 'Pearson_R (-)', 'RMSD (m)', 'abs_bias (m)']
     df_metrics = pd.DataFrame(index=INDEX, columns=COL, dtype=float)
@@ -152,7 +156,7 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         df_tmp2_et = pd.concat((et_obs[site], et_mod[site]), axis=1)
         df_tmp2_et.columns = ['data_obs', 'data_mod']
 
-        df_tmp_ee = pd.concat((ee_obs[site], ee_mod[site]), axis=1)  # error hier, verder werken morgen
+        df_tmp_ee = pd.concat((ee_obs[site], ee_mod[site]), axis=1)
         df_tmp_ee.columns = ['data_obs', 'data_mod']
 
         df_tmp_br = pd.concat((br_obs[site], br_mod[site]), axis=1)
@@ -160,6 +164,9 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
 
         df_tmp_rn = pd.concat((rn_obs[site], rn_mod[site]), axis=1)
         df_tmp_rn.columns = ['data_obs', 'data_mod']
+
+        df_tmp2_rn = pd.concat((rn_obs[site], rn_mod[site]), axis=1)
+        df_tmp2_rn.columns = ['data_obs', 'data_mod']
 
         df_tmp_sh = pd.concat((sh_obs[site], sh_mod[site]), axis=1)
         df_tmp_sh.columns = ['data_obs', 'data_mod']
@@ -205,8 +212,10 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
             color = ['m', '#1f77b4']
         elif '/Natural' in outpath:
             color = ['g', '#1f77b4']
-            # to make a good color distinction
-            # color = ['g', 'r']
+        elif 'CLSMTN' in exp:
+            color = ['g', '#1f77b4']
+        elif 'CLSMTD' in exp:
+            color = ['m', '#1f77b4']
         else:
             color = ['#1f77b4', '#1f77b4']
 
@@ -352,7 +361,7 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         plt.ylabel('In situ evapotranspiration (mm/day)', fontsize=22)
         plt.xlabel('In situ water table depth (m)', fontsize=22)
         plt.legend(fontsize=20)
-        plt.xlim((-1.5, 0.1))
+        plt.xlim((-2.3 , 0.1))
         plt.ylim(1,8)
         plt.xticks(fontsize=18)
         plt.yticks(fontsize=18)
@@ -362,7 +371,7 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         plt.ylabel('In situ evapotranspiration (mm/day)', fontsize=22)
         plt.xlabel('Water table depth (m)', fontsize=22)
         plt.legend(fontsize=20)
-        plt.xlim((-1.5, 0.1))
+        plt.xlim((-2.3, 0.1))
         plt.ylim(1,8)
         plt.xticks(fontsize=18)
         plt.yticks(fontsize=18)
@@ -372,7 +381,7 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         plt.ylabel('Evapotranspiration (mm/day)', fontsize=22)
         plt.xlabel('Water table depth (m)', fontsize=22)
         plt.legend(fontsize=20)
-        plt.xlim((-1.5, 0.1))
+        plt.xlim((-2.3, 0.1))
         plt.ylim(1,8)
         plt.xticks(fontsize=18)
         plt.yticks(fontsize=18)
@@ -382,7 +391,7 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         plt.ylabel('Plant Transpiration (mm/day)', fontsize=22)
         plt.xlabel('Water table depth (m)', fontsize=22)
         plt.legend(fontsize=20)
-        plt.xlim((-1.5, 0.1))
+        plt.xlim((-2.3, 0.1))
         plt.xticks(fontsize=18)
         plt.yticks(fontsize=18)
 
@@ -391,7 +400,7 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         plt.ylabel('Soil Evaporation (mm/day)', fontsize=22)
         plt.xlabel('Water table depth (m)', fontsize=22)
         plt.legend(fontsize=20)
-        plt.xlim((-1.5, 0.1))
+        plt.xlim((-2.3, 0.1))
         plt.xticks(fontsize=18)
         plt.yticks(fontsize=18)
 
@@ -400,7 +409,7 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         plt.ylabel('Interception Evaporation (mm/day)', fontsize=22)
         plt.xlabel('Water table depth (m)', fontsize=22)
         plt.legend(fontsize=20)
-        plt.xlim((-1.5, 0.1))
+        plt.xlim((-2.3, 0.1))
         plt.xticks(fontsize=18)
         plt.yticks(fontsize=18)
 
@@ -414,24 +423,55 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         # calculation of ETpot according to Maes et al.2017
         # Change Tair and rn from Tair_mod to Tair_obs and rn_mod to rn_obs
         # Model ETpot!!!!
-        Tair_mod[site] = (Tair_mod[
-            site]) - 273.15  # to calculate everything as °C instead of K, how they do it in Allen et al. 1998 (=FAO)
-        alpha_PT = 1.09
-        psi = 0.655 * (10e-6) * Psurf_mod[site]
-        s_teller = (0.6108) * np.exp(((17.27 * Tair_mod[site]) / (Tair_mod[site] + 237.3)))
-        s_noemer = (Tair_mod[site] + 237.3) ** 2
-        s = 4098 * (s_teller / s_noemer)
-        ETpot_mod = (alpha_PT * ((s * (rn_mod[site] - ghflux_mod[site])) / (s + psi))) / 7.3992
+        PM = 'False'
+        if 'True' in PM: #Penman Monteith based ETpot calculation
+            Tair_mod[site] = (Tair_mod[
+                site]) - 273.15  # to calculate everything as °C instead of K, how they do it in Allen et al. 1998 (=FAO)
+            gc_PM = 42.0 # mm/s
+            rc_PM=1000/gc_PM #s/m
+            raH = 208/Wind[site] #s/m because windspeed is m/s
+            psi = 0.655 * (10e-6) * Psurf_mod[site]
+            rohcp=(psi*0.622*2.4298)/(1.01*(Tair_mod[site]+273)*0.287)
+            #VPD_mod calc
+            SVP = (610 * (10 ** ((7.5 * Tair_mod[site]) / (237.3 + Tair_mod[site]))))
+            RH = (Qair[site] * Psurf_mod[site]) / (0.622 * SVP) * 100
+            VPD_mod = ((100 - RH) / 100) * SVP
+            VPD_mod = pd.Series.to_frame(VPD_mod)
 
-        # In situ ETpot!!!
-        Tair_obs[site] = (
-        Tair_obs[site])  # to calculate everything as °C instead of K, how they do it in Allen et al. 1998 (=FAO)
-        alpha_PT = 1.09
-        psi = 0.655 * (10e-6) * Psurf_mod[site]
-        s_teller = (0.6108) * np.exp(((17.27 * Tair_obs[site]) / (Tair_obs[site] + 237.3)))
-        s_noemer = (Tair_obs[site] + 237.3) ** 2
-        s = 4098 * (s_teller / s_noemer)
-        ETpot_obs = (alpha_PT * ((s * (rn_obs[site] - ghflux_mod[site])) / (s + psi))) / 7.3992
+            s_teller = (0.6108) * np.exp(((17.27 * Tair_mod[site]) / (Tair_mod[site] + 237.3)))
+            s_noemer = (Tair_mod[site] + 237.3) ** 2
+            s = 4098 * (s_teller / s_noemer)
+            ETpot_mod = (((s * (rn_mod[site] - ghflux_mod[site]))+(rohcp*VPD_mod[site])/raH) / (s + psi +(psi*rc_PM/raH))) / 7.3992
+
+
+            # In situ ETpot!!!
+            Tair_obs[site] = (Tair_obs[site])  # to calculate everything as °C instead of K, how they do it in Allen et al. 1998 (=FAO)
+            psi = 0.655 * (10e-6) * Psurf_mod[site]
+            rohcp=(psi*0.622*2.4298)/(1.01*(Tair_obs[site]+273)*0.287)
+            s_teller = (0.6108) * np.exp(((17.27 * Tair_obs[site]) / (Tair_obs[site] + 237.3)))
+            s_noemer = (Tair_obs[site] + 237.3) ** 2
+            s = 4098 * (s_teller / s_noemer)
+            ETpot_obs = (((s * (rn_obs[site] - ghflux_mod[site]))+(rohcp*vpd_obs[site])/raH) / (s + psi +(psi*rc_PM/raH))) / 7.3992
+
+        else: # Priestley and Taylor based ETpot calculation
+            # PT parameters
+            Tair_mod[site] = (Tair_mod[
+                site]) - 273.15  # to calculate everything as °C instead of K, how they do it in Allen et al. 1998 (=FAO)
+            alpha_PT = 1.09
+            psi = 0.655 * (10e-6) * Psurf_mod[site]
+
+            # model ETpot
+            s_teller = (0.6108) * np.exp(((17.27 * Tair_mod[site]) / (Tair_mod[site] + 237.3)))
+            s_noemer = (Tair_mod[site] + 237.3) ** 2
+            s = 4098 * (s_teller / s_noemer)
+            ETpot_mod = (alpha_PT * ((s * (rn_mod[site] - ghflux_mod[site])) / (s + psi))) / 7.3992
+
+            # In situ ETpot!
+            Tair_obs[site] = (Tair_obs[site])  # to calculate everything as °C instead of K, how they do it in Allen et al. 1998 (=FAO)
+            s_teller = (0.6108) * np.exp(((17.27 * Tair_obs[site]) / (Tair_obs[site] + 237.3)))
+            s_noemer = (Tair_obs[site] + 237.3) ** 2
+            s = 4098 * (s_teller / s_noemer)
+            ETpot_obs = (alpha_PT * ((s * (rn_obs[site] - ghflux_mod[site])) / (s + psi))) / 7.3992
 
         # other df calculations
         et_obs_used = et_obs[site]
@@ -439,8 +479,10 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
 
         norm_et_mod = et_obs_used / ETpot_mod
         norm_et_obs = et_obs_used / ETpot_obs
+        norm_et_mod_mod = et_mod_used / ETpot_mod
         norm_et_mod = pd.Series.to_frame(norm_et_mod)
         norm_et_obs = pd.Series.to_frame(norm_et_obs)
+        norm_et_mod_mod  = pd.Series.to_frame(norm_et_mod_mod)
         norm_et_wtd_mod = pd.concat([norm_et_mod, wtd_obs[site]], axis=1)
         norm_et_wtd_mod.columns = ['et_norm_mod', 'wtd_obs']
         norm_et_wtd_mod = norm_et_wtd_mod[
@@ -448,7 +490,11 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         norm_et_wtd_obs = pd.concat([norm_et_obs, wtd_obs[site]], axis=1)
         norm_et_wtd_obs.columns = ['et_norm_obs', 'wtd_obs']
         norm_et_wtd_obs = norm_et_wtd_obs[
-            norm_et_wtd_obs['wtd_obs'].notna()]  # removes all rows for each column with nan-values in column: wtd_obs
+            norm_et_wtd_obs['wtd_obs'].notna()] # removes all rows for each column with nan-values in column: wtd_obs
+        norm_et_wtd_mod_mod = pd.concat([norm_et_mod_mod, zbar_mod[site]], axis=1)
+        norm_et_wtd_mod_mod.columns = ['et_norm_mod_mod', 'wtd_mod']
+        norm_et_wtd_mod_mod = norm_et_wtd_mod_mod[
+            norm_et_wtd_mod_mod['wtd_mod'].notna()]
         pot_et_wtd_mod = pd.concat([ETpot_mod, wtd_obs[site]], axis=1)
         pot_et_wtd_mod.columns = ['pot_et_mod', 'wtd_obs']
         pot_et_wtd_mod = pot_et_wtd_mod[
@@ -532,7 +578,23 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         fig8 = plt.figure(figsize=(22, 13))
         fontsize = 12
 
-        ax1 = plt.subplot2grid((2, 2), (0, 0), rowspan=1, colspan=1, fig=None)
+        #remove haze and concat modeled to timeframe of observed
+        exclusion_dates = pd.date_range(start='2006/09/17', end='2006/12/17')
+        norm_et_wtd_obs = norm_et_wtd_obs.loc[~norm_et_wtd_obs.index.isin(exclusion_dates)]
+        overlap_check = pd.concat((norm_et_wtd_mod_mod,norm_et_wtd_obs["et_norm_obs"]), axis=1)
+        norm_et_wtd_mod_mod = overlap_check[overlap_check['et_norm_obs'].notna()]
+        norm_et_wtd_mod_mod = norm_et_wtd_mod_mod.drop(columns=["et_norm_obs"])
+        overlap_check = pd.concat((pot_et_wtd_mod,norm_et_wtd_obs["et_norm_obs"]), axis=1)
+        pot_et_wtd_mod = overlap_check[overlap_check['et_norm_obs'].notna()]
+        pot_et_wtd_mod = pot_et_wtd_mod.drop(columns=["et_norm_obs"])
+        overlap_check = pd.concat((pot_et_wtd_obs,norm_et_wtd_obs["et_norm_obs"]), axis=1)
+        pot_et_wtd_obs = overlap_check[overlap_check['et_norm_obs'].notna()]
+        pot_et_wtd_obs = pot_et_wtd_obs.drop(columns=["et_norm_obs"])
+        overlap_check = pd.concat((norm_et_wtd_mod,norm_et_wtd_obs["et_norm_obs"]), axis=1)
+        norm_et_wtd_mod = overlap_check[overlap_check['et_norm_obs'].notna()]
+        norm_et_wtd_mod = norm_et_wtd_mod.drop(columns=["et_norm_obs"])
+
+        ax1 = plt.subplot2grid((2, 3), (0, 0), rowspan=1, colspan=1, fig=None)
         pot_et_wtd_mod.plot(ax=ax1, y='pot_et_mod', x='wtd_obs', fontsize=fontsize, style=['.'], color='darkorange',
                             markersize=4.5)
         plt.ylabel('Model potential \n ET (mm/day)', fontsize=20)
@@ -540,7 +602,7 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         plt.xticks(fontsize=18)
         plt.yticks(fontsize=18)
 
-        ax2 = plt.subplot2grid((2, 2), (1, 0), rowspan=1, colspan=1, fig=None)
+        ax2 = plt.subplot2grid((2, 3), (1, 0), rowspan=1, colspan=1, fig=None)
         pot_et_wtd_obs.plot(ax=ax2, y='pot_et_obs', x='wtd_obs', fontsize=fontsize, style=['.'], color='sandybrown',
                             markersize=4.5)
         plt.ylabel('In situ potential\n  ET (mm/day)', fontsize=20)
@@ -548,28 +610,139 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         plt.xticks(fontsize=18)
         plt.yticks(fontsize=18)
 
-        ax3 = plt.subplot2grid((2, 2), (0, 1), rowspan=1, colspan=1, fig=None)
+        ax3 = plt.subplot2grid((2, 3), (0, 1), rowspan=1, colspan=1, fig=None)
         norm_et_wtd_mod.plot(ax=ax3, y='et_norm_mod', x='wtd_obs', fontsize=fontsize, style=['.'],
                              color='darkolivegreen', markersize=4.5)
-        plt.ylabel('Normalized ET with \n model ETpot (mm/day)', fontsize=20)
+        plt.ylabel('In situ ET normalized with \n model ETpot (mm/day)', fontsize=20)
         plt.xlabel('In situ water table depth (m)', fontsize=20)
+        plt.ylim([0.2, 2])
+        plt.xticks(fontsize=18)
+        #plt.xlim([-1.4, 0.2])
+        plt.yticks(fontsize=18)
+
+        ax4 = plt.subplot2grid((2, 3), (1, 1), rowspan=1, colspan=1, fig=None)
+        norm_et_wtd_obs.plot(ax=ax4, y='et_norm_obs', x='wtd_obs', fontsize=fontsize, style=['.'], color='limegreen',
+                             markersize=4.3)
+        plt.ylabel('In situ ET normalized with \n in situ ETpot (mm/day)', fontsize=20)
+        plt.xlabel('In situ water table depth (m)', fontsize=20)
+        plt.ylim([0.2, 2])
+        #plt.xlim([-1.35, -0.2])
         plt.xticks(fontsize=18)
         plt.yticks(fontsize=18)
 
-        ax4 = plt.subplot2grid((2, 2), (1, 1), rowspan=1, colspan=1, fig=None)
-        norm_et_wtd_obs.plot(ax=ax4, y='et_norm_obs', x='wtd_obs', fontsize=fontsize, style=['.'], color='limegreen',
+        ax5 = plt.subplot2grid((2, 3), (1, 2), rowspan=1, colspan=1, fig=None)
+        norm_et_wtd_mod_mod.plot(ax=ax5, y='et_norm_mod_mod', x='wtd_mod', fontsize=fontsize-4, style=['.'], color='limegreen',
                              markersize=4.5)
-        plt.ylabel('Normalized ET with \n in situ ETpot (mm/day)', fontsize=20)
-        plt.xlabel('In situ water table depth (m)', fontsize=20)
-        # plt.ylim([0.5, 1.25])
+        plt.ylabel('Model ET normalized with \n model ETpot (mm/day)', fontsize=20)
+        plt.xlabel('Model water table depth (m)', fontsize=20)
+        plt.ylim([0.2, 2])
+        #plt.xlim([-1.4, 0.2])
         plt.xticks(fontsize=18)
         plt.yticks(fontsize=18)
+
 
         plt.tight_layout()
         fname = site
         fname_long = os.path.join(outpath + '/potential_ET_WTD' + fname + '.png')
         plt.savefig(fname_long, dpi=150)
         plt.close()
+
+        #figextra
+        rn_wtd = pd.concat([rn_obs[site], wtd_obs[site]],
+            axis=1, join='inner')
+        RN_wtd = pd.concat([rn_mod[site], wtd_obs[site]],
+            axis=1, join='inner')
+        rn_wtd.columns = ['rn_obs', 'wtd_obs']
+        RN_wtd.columns = ['rn_mod', 'wtd_obs']
+        RN_wtd = RN_wtd[RN_wtd['wtd_obs'].notna()]
+        rn_wtd = rn_wtd[rn_wtd['wtd_obs'].notna()]
+
+        #remove haze period in rn data based on the period assigned above
+        overlap_check = pd.concat((rn_wtd, norm_et_wtd_obs["et_norm_obs"]), axis=1)
+        rn_wtd = overlap_check[overlap_check['et_norm_obs'].notna()]
+        rn_wtd = rn_wtd.drop(columns=["et_norm_obs"])
+        overlap_check = pd.concat((RN_wtd, norm_et_wtd_obs["et_norm_obs"]), axis=1)
+        RN_wtd = overlap_check[overlap_check['et_norm_obs'].notna()]
+        RN_wtd = RN_wtd.drop(columns=["et_norm_obs"])
+
+        figextra = plt.figure(figsize=(20, 20))
+        fontsize = 12
+
+        # calculate lowess fit and confidence interval 95%
+        def smooth(x, y, xgrid):
+            samples = np.random.choice(len(x), 1002, replace=True)
+            y_s = y[samples]
+            x_s = x[samples]
+            y_sm = sm_lowess(y_s, x_s, it=0, missing='drop',return_sorted=False)
+            # regularly sample it onto the grid
+            y_grid = scipy.interpolate.interp1d(x_s, y_sm, fill_value='extrapolate')(xgrid)
+            return y_grid
+        xgrid = np.linspace(pot_et_wtd_mod['wtd_obs'].min(), pot_et_wtd_mod['wtd_obs'].max())
+        K = 501
+
+        ax1 = plt.subplot2grid((2, 2), (0, 0), fig=None)
+        pot_et_wtd_obs.plot(ax=ax1, y='pot_et_obs', x='wtd_obs', fontsize=fontsize, style=['.'], color='#1f77b4', markersize=4)
+        smooths = np.stack([smooth(pot_et_wtd_obs['wtd_obs'], pot_et_wtd_obs['pot_et_obs'], xgrid) for k in range(K)]).T
+        mean = np.nanmean(smooths, axis=1)
+        stderr = scipy.stats.sem(smooths, axis=1)
+        stderr = np.nanstd(smooths, axis=1, ddof=0)
+        plt.plot(xgrid, mean, color='k', linewidth=3.5)
+        plt.fill_between(xgrid, mean - 1.96 * stderr, mean + 1.96 * stderr, alpha=0.25)
+        plt.ylabel('In situ potential\n  ET (mm/day)', fontsize=20)
+        plt.xlabel('In situ water table depth (m)', fontsize=20)
+        plt.ylim([1, 8.6])
+
+        ax2 = plt.subplot2grid((2, 2), (0, 1), rowspan=1, colspan=1, fig=None)
+        pot_et_wtd_mod.plot(ax=ax2, y='pot_et_mod', x='wtd_obs', fontsize=fontsize, style=['.'], color=color, markersize=4)
+        smooths = np.stack([smooth(pot_et_wtd_mod['wtd_obs'], pot_et_wtd_mod['pot_et_mod'], xgrid) for k in range(K)]).T
+        mean = np.nanmean(smooths, axis=1)
+        stderr = scipy.stats.sem(smooths, axis=1)
+        stderr = np.nanstd(smooths, axis=1, ddof=0)
+        plt.plot(xgrid, mean, color='k', linewidth=3.5)
+        plt.fill_between(xgrid, mean - 1.96 * stderr, mean + 1.96 * stderr, alpha=0.25)
+        plt.ylabel('Model potential\n  ET (mm/day)', fontsize=20)
+        plt.xlabel('In situ water table depth (m)', fontsize=20)
+        plt.ylim([1, 8.6])
+
+
+        ax3 = plt.subplot2grid((2, 2), (1, 0), fig=None)
+        rn_wtd.plot(ax=ax3, y='rn_obs',x= 'wtd_obs', fontsize=fontsize, style=['.'], color='#1f77b4', markersize=4)
+        smooths = np.stack([smooth(rn_wtd['wtd_obs'], rn_wtd['rn_obs'], xgrid) for k in range(K)]).T
+        mean = np.nanmean(smooths, axis=1)
+        stderr = scipy.stats.sem(smooths, axis=1)
+        stderr = np.nanstd(smooths, axis=1, ddof=0)
+        plt.plot(xgrid, mean, color='k', linewidth=3.5)
+        plt.fill_between(xgrid, mean - 1.96 * stderr, mean + 1.96 * stderr, alpha=0.25)
+        plt.ylabel('rn_obs (W/m²)', fontsize=20)
+        plt.xlabel('wtd_obs (m)', fontsize=20)
+        plt.ylim([30, 260])
+
+        ax4 = plt.subplot2grid((2, 2), (1, 1), fig=None)
+        RN_wtd.plot(ax=ax4, y='rn_mod',x= 'wtd_obs', fontsize=fontsize, style=['.'], color=color, markersize=4)
+        smooths = np.stack([smooth(RN_wtd['wtd_obs'], RN_wtd['rn_mod'], xgrid) for k in range(K)]).T
+        mean = np.nanmean(smooths, axis=1)
+        stderr = scipy.stats.sem(smooths, axis=1)
+        stderr = np.nanstd(smooths, axis=1, ddof=0)
+        plt.plot(xgrid, mean, color='k', linewidth=3.5)
+        plt.fill_between(xgrid, mean - 1.96 * stderr, mean + 1.96 * stderr, alpha=0.25)
+        plt.ylabel('rn_mod (W/m²)', fontsize=20)
+        plt.xlabel('wtd_obs (m)', fontsize=20)
+        plt.ylim([30, 260])
+        ax1.get_legend().remove()
+        ax2.get_legend().remove()
+        ax3.get_legend().remove()
+        ax4.get_legend().remove()
+        ax1.tick_params(axis='both', which='major', labelsize=18)
+        ax2.tick_params(axis='both', which='major', labelsize=18)
+        ax3.tick_params(axis='both', which='major', labelsize=18)
+        ax4.tick_params(axis='both', which='major', labelsize=18)
+
+        plt.tight_layout()
+        fname = site
+        fname_long = os.path.join(outpath + '/RnvsWTD' + fname + '.png')
+        plt.savefig(fname_long, dpi=300)
+        plt.close()
+
 
         # fig9
         RN = pd.concat([rn_mod[site], rn_obs[site]], axis=1)
@@ -581,6 +754,14 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         RN2 = copy.deepcopy(RN)
         TAIR2 = copy.deepcopy(TAIR)
 
+        SVP=(610*(10**((7.5*Tair_mod[site])/(237.3+Tair_mod[site]))))
+        RH=(Qair[site]*Psurf_mod[site])/(0.622*SVP)*100
+        VPD_mod = ((100-RH)/100)*SVP
+        VPD_mod = pd.Series.to_frame(VPD_mod)
+        VPD = pd.concat([VPD_mod[site], vpd_obs[site]], axis=1)
+        VPD.columns = ['vpd_mod', 'vpd_obs']
+        VPD2 = copy.deepcopy(VPD)
+
         """metric calculation overall"""
         R_rn = metrics.Pearson_R(RN2)
         bias_rn = metrics.bias(RN2)
@@ -588,22 +769,33 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         R_ta = metrics.Pearson_R(TAIR2)
         bias_ta = metrics.bias(TAIR2)
         abias_ta = bias_ta.abs()
+        R_vpd = metrics.Pearson_R(VPD2)
+        bias_vpd = metrics.bias(VPD2)
+        abias_vpd = bias_vpd.abs()
 
-        fig9 = plt.figure(figsize=(16, 8.5))
+        fig9 = plt.figure(figsize=(17, 10))
         fontsize = 12
 
-        ax1 = plt.subplot2grid((2, 1), (0, 0), rowspan=1, fig=None)
+        ax1 = plt.subplot2grid((3, 1), (0, 0), rowspan=1, fig=None)
         RN.plot(ax=ax1, fontsize=fontsize, style=['-', '-'], color=color, linewidth=0.9, markersize=3,
                 xlim=Xlim_wtd)
-        plt.ylabel('Rnet')
+        plt.ylabel('Rnet (W/m²)')
 
         Title = site + '\n' + 'R (Rn) = ' + str(R_rn[0]) + ',  abs_bias (Rn) = ' + str(
             abias_rn[0]) + ',  bias (Rn) = ' + str(bias_rn[0])
         plt.title(Title)
 
-        ax2 = plt.subplot2grid((2, 1), (1, 0), rowspan=1, fig=None)
-        TAIR.plot(ax=ax2, fontsize=fontsize, style=['-', '-'], color=color, linewidth=0.9, markersize=3, xlim=Xlim_wtd)
-        plt.ylabel('Tair')
+        ax2 = plt.subplot2grid((3, 1), (1, 0), rowspan=1, fig=None)
+        VPD.plot(ax=ax2, fontsize=fontsize, style=['-', '-'], color=color, linewidth=0.9, markersize=3, xlim=Xlim_wtd)
+        plt.ylabel('VPD (Pa)')
+
+        Title = site + '\n' + 'R (vpd) = ' + str(R_vpd[0]) + ',  abs_bias (vpd) = ' + str(
+            abias_vpd[0]) + ',  bias (vpd) = ' + str(bias_vpd[0])
+        plt.title(Title)
+
+        ax3 = plt.subplot2grid((3, 1), (2, 0), rowspan=1, fig=None)
+        TAIR.plot(ax=ax3, fontsize=fontsize, style=['-', '-'], color=color, linewidth=0.9, markersize=3, xlim=Xlim_wtd)
+        plt.ylabel('Tair (°C) ')
 
         Title = site + '\n' + 'R (Tair) = ' + str(R_ta[0]) + ',  abs_bias (Tair) = ' + str(
             abias_ta[0]) + ',  bias (Tair) = ' + str(bias_ta[0])
@@ -611,7 +803,7 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
 
         plt.tight_layout()
         fname = site
-        fname_long = os.path.join(outpath + '/rn-tair' + fname + '.png')
+        fname_long = os.path.join(outpath + '/rn-tair-vpd' + fname + '.png')
         plt.savefig(fname_long, dpi=150)
         plt.close()
 
@@ -623,29 +815,29 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         AR_all.columns = ['AR1', 'AR2', 'AR4', 'zbar']
 
         ax1 = plt.subplot2grid((1, 3), (0, 0), rowspan=1, colspan=1, fig=None)
-        AR_all.plot(ax=ax1, y='AR1', x='zbar', fontsize=fontsize, style=['.'], color='g', markersize=4)
+        AR_all.plot(ax=ax1, y='AR1', x='zbar', fontsize=fontsize, style=['.'], color='k', markersize=4)
         plt.ylabel('AR1 [-]', fontsize=20)
         plt.xlabel('Modeled water table depth (m)', fontsize=20)
         plt.ylim([0, 1])
-        plt.xlim([-1.5, 0])
+        plt.xlim([-2.5, 0])
         plt.xticks(fontsize=18)
         plt.yticks(fontsize=18)
 
         ax2 = plt.subplot2grid((1, 3), (0, 1), rowspan=1, colspan=1, fig=None)
-        AR_all.plot(ax=ax2, y='AR2', x='zbar', fontsize=fontsize, style=['.'], color='g', markersize=4)
+        AR_all.plot(ax=ax2, y='AR2', x='zbar', fontsize=fontsize, style=['.'], color='k', markersize=4)
         plt.ylabel('AR2 [-]', fontsize=20)
         plt.xlabel('Modeled water table depth (m)', fontsize=20)
         plt.ylim([0, 1])
-        plt.xlim([-1.5, 0])
+        plt.xlim([-2.5, 0])
         plt.xticks(fontsize=18)
         plt.yticks(fontsize=18)
 
         ax3 = plt.subplot2grid((1, 3), (0, 2), rowspan=1, colspan=1, fig=None)
-        AR_all.plot(ax=ax3, y='AR4', x='zbar', fontsize=fontsize, style=['.'], color='g', markersize=4)
+        AR_all.plot(ax=ax3, y='AR4', x='zbar', fontsize=fontsize, style=['.'], color='k', markersize=4)
         plt.ylabel('AR4 [-]', fontsize=20)
         plt.xlabel('Modeled water table depth (m)', fontsize=20)
         plt.ylim([0, 1])
-        plt.xlim([-1.5, 0])
+        plt.xlim([-2.5, 0])
         plt.xticks(fontsize=18)
         plt.yticks(fontsize=18)
 
@@ -663,7 +855,7 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         sfmc_all.columns = ['evap', 'eveg', 'esoi', 'zbar', 'sfmc']
 
         ax1 = plt.subplot2grid((3, 2), (0, 0), rowspan=1, colspan=1, fig=None)
-        sfmc_all.plot(ax=ax1, y='sfmc', x='evap', fontsize=fontsize, style=['.'], color='g', markersize=4)
+        sfmc_all.plot(ax=ax1, y='sfmc', x='evap', fontsize=fontsize, style=['.'], color='k', markersize=4)
         plt.ylabel('sfmc', fontsize=20)
         plt.xlabel('evap', fontsize=20)
         plt.ylim([0, 1])
@@ -671,7 +863,7 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         plt.yticks(fontsize=18)
 
         ax2 = plt.subplot2grid((3, 2), (0, 1), rowspan=1, colspan=1, fig=None)
-        sfmc_all.plot(ax=ax2, y='sfmc', x='eveg', fontsize=fontsize, style=['.'], color='g', markersize=4)
+        sfmc_all.plot(ax=ax2, y='sfmc', x='eveg', fontsize=fontsize, style=['.'], color='k', markersize=4)
         plt.ylabel('sfmc', fontsize=20)
         plt.xlabel('eveg', fontsize=20)
         plt.ylim([0, 1])
@@ -679,7 +871,7 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         plt.yticks(fontsize=18)
 
         ax3 = plt.subplot2grid((3, 2), (1, 0), rowspan=1, colspan=1, fig=None)
-        sfmc_all.plot(ax=ax3, y='sfmc', x='esoi', fontsize=fontsize, style=['.'], color='g', markersize=4)
+        sfmc_all.plot(ax=ax3, y='sfmc', x='esoi', fontsize=fontsize, style=['.'], color='k', markersize=4)
         plt.ylabel('sfmc', fontsize=20)
         plt.xlabel('esoi', fontsize=20)
         plt.ylim([0, 1])
@@ -687,16 +879,16 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         plt.yticks(fontsize=18)
 
         ax4 = plt.subplot2grid((3, 2), (1, 1), rowspan=1, colspan=1, fig=None)
-        sfmc_all.plot(ax=ax4, y='sfmc', x='zbar', fontsize=fontsize, style=['.'], color='g', markersize=4)
+        sfmc_all.plot(ax=ax4, y='sfmc', x='zbar', fontsize=fontsize, style=['.'], color='k', markersize=4)
         plt.ylabel('sfmc', fontsize=20)
         plt.xlabel('zbar', fontsize=20)
         plt.ylim([0, 1])
-        plt.xlim([-1, 0])
+        plt.xlim([-2, 0])
         plt.xticks(fontsize=18)
         plt.yticks(fontsize=18)
 
         ax5 = plt.subplot2grid((3, 2), (2, 0), rowspan=1, colspan=2, fig=None)
-        sfmc[site].plot(ax=ax5, fontsize=fontsize, style=['.'], color='g', markersize=4, xlim=Xlim_wtd)
+        sfmc[site].plot(ax=ax5, fontsize=fontsize, style=['.'], color='k', markersize=4, xlim=Xlim_wtd)
         plt.ylabel('sfmc', fontsize=20)
         plt.ylim([0, 1])
         plt.xticks(fontsize=18)
@@ -708,16 +900,69 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         plt.savefig(fname_long, dpi=150)
         plt.close()
 
+        # fig12
+        Figure3 = plt.figure(figsize=(30, 20))
+        fontsize = 12
+        rzmc_all = pd.concat((et_mod[site], eveg_mod[site], esoi_mod[site], zbar_mod[site], rzmc[site]), axis=1,
+                             join='inner')
+        rzmc_all.columns = ['evap', 'eveg', 'esoi', 'zbar', 'rzmc']
 
-def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, exp, outpath):
+        ax1 = plt.subplot2grid((3, 2), (0, 0), rowspan=1, colspan=1, fig=None)
+        rzmc_all.plot(ax=ax1, y='rzmc', x='evap', fontsize=fontsize, style=['.'], color='k', markersize=4)
+        plt.ylabel('rzmc', fontsize=20)
+        plt.xlabel('evap', fontsize=20)
+        plt.ylim([0, 1])
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        ax2 = plt.subplot2grid((3, 2), (0, 1), rowspan=1, colspan=1, fig=None)
+        rzmc_all.plot(ax=ax2, y='rzmc', x='eveg', fontsize=fontsize, style=['.'], color='k', markersize=4)
+        plt.ylabel('rzmc', fontsize=20)
+        plt.xlabel('eveg', fontsize=20)
+        plt.ylim([0, 1])
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        ax3 = plt.subplot2grid((3, 2), (1, 0), rowspan=1, colspan=1, fig=None)
+        rzmc_all.plot(ax=ax3, y='rzmc', x='esoi', fontsize=fontsize, style=['.'], color='k', markersize=4)
+        plt.ylabel('rzmc', fontsize=20)
+        plt.xlabel('esoi', fontsize=20)
+        plt.ylim([0, 1])
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        ax4 = plt.subplot2grid((3, 2), (1, 1), rowspan=1, colspan=1, fig=None)
+        rzmc_all.plot(ax=ax4, y='rzmc', x='zbar', fontsize=fontsize, style=['.'], color='k', markersize=4)
+        plt.ylabel('rzmc', fontsize=20)
+        plt.xlabel('zbar', fontsize=20)
+        plt.ylim([0, 1])
+        plt.xlim([-2, 0])
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        ax5 = plt.subplot2grid((3, 2), (2, 0), rowspan=1, colspan=2, fig=None)
+        rzmc[site].plot(ax=ax5, fontsize=fontsize, style=['.'], color='k', markersize=4, xlim=Xlim_wtd)
+        plt.ylabel('rzmc', fontsize=20)
+        plt.ylim([0, 1])
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        plt.tight_layout()
+        fname = site
+        fname_long = os.path.join(outpath + '/rzmcvsall' + fname + '.png')
+        plt.savefig(fname_long, dpi=200)
+        plt.close()
+
+
+def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, sfmc_mod, rzmc_mod, srfexc, rzexc, catdef, exp, outpath):
     # Initiate dataframe to store metrics in of wtd
     INDEX = wtd_obs.columns
-    COL = ['bias (m)', 'ubRMSD (m)', 'Pearson_R (-)', 'RMSD (m)', 'abs_bias (m)']
+    COL = ['bias (m)', 'RMSD (m)', 'ubRMSD (m)', 'R (-)', 'anomR (-)']
     df_metrics = pd.DataFrame(index=INDEX, columns=COL, dtype=float)
 
     # Initiate dataframe to store metrics in of precipitation
     INDEX = precip_obs.columns
-    COL = ['bias_P (m)', 'ubRMSD_P (m)', 'Pearson_R_P (-)', 'RMSD_P (m)', 'abs_bias_P (m)']
+    COL = ['bias_P (m)', 'ubRMSD_P (m)', 'R_P (-)', 'RMSD_P (m)']
     df_metrics_P = pd.DataFrame(index=INDEX, columns=COL, dtype=float)
 
     for c, site in enumerate(wtd_obs.columns):
@@ -738,16 +983,34 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, e
         ubRMSD_site = metrics.ubRMSD(df_tmp2_wtd)  # ubRMSD = ubRMSD_site[0]
         pearson_R_site = metrics.Pearson_R(df_tmp2_wtd)  # Pearson_R = pearson_R_site[0]
         RMSD_site = (ubRMSD_site[0] ** 2 + bias_site[0] ** 2) ** 0.5
-        abs_bias_site = bias_site.abs()
-        # abs_bias_site_value = abs(abs_bias_site)
-        # abs_bias_site = abs_bias_site('bias').update(abs_bias_site_value('bias'))
+        #calculate anomalies only of 3 years or more of total data
+        threeYears = df_tmp_wtd['data_obs'].count()
+        if threeYears >= 1095:
+            anomaly_obs=calc_anomaly(df_tmp2_wtd['data_obs'])
+            anomaly_mod=calc_anomaly(df_tmp2_wtd['data_mod'])
+            anomalies=pd.concat([anomaly_mod,anomaly_obs], axis=1)
+            anomR_site = metrics.Pearson_R(anomalies)
+        else:
+            anomR_site = np.array(['nan'])
+            anomR_site = pd.Series(anomR_site,index=['R'])
+
+        #calculate confidence intervals for each of the metrics
+        def pearsonr_ci(x, y, alpha=0.05):
+            r, p = stats.pearsonr(x, y)
+            r_z = np.arctanh(r)
+            se = 1 / np.sqrt(x.size - 3)
+            z = stats.norm.ppf(1 - alpha / 2)
+            lo_z, hi_z = r_z - z * se, r_z + z * se
+            lo, hi = np.tanh((lo_z, hi_z))
+            return lo, hi
+        
 
         # Save metrics in df_metrics.
         df_metrics.loc[site]['bias (m)'] = bias_site[0]
         df_metrics.loc[site]['ubRMSD (m)'] = ubRMSD_site[0]
-        df_metrics.loc[site]['Pearson_R (-)'] = pearson_R_site[0]
+        df_metrics.loc[site]['R (-)'] = pearson_R_site[0]
         df_metrics.loc[site]['RMSD (m)'] = RMSD_site
-        df_metrics.loc[site]['abs_bias (m)'] = abs_bias_site[0]
+        df_metrics.loc[site]['anomR (-)'] = anomR_site[0]
 
         if (-10) in set(df_tmp_precip['data_obs']):
             df_tmp_precip = df_tmp_precip
@@ -761,9 +1024,8 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, e
             # Save metrics in df_metrics.
             df_metrics_P.loc[site]['bias_P (m)'] = bias_site_P[0]
             df_metrics_P.loc[site]['ubRMSD_P (m)'] = ubRMSD_site_P[0]
-            df_metrics_P.loc[site]['Pearson_R_P (-)'] = pearson_R_site_P[0]
+            df_metrics_P.loc[site]['R_P (-)'] = pearson_R_site_P[0]
             df_metrics_P.loc[site]['RMSD_P (m)'] = RMSD_site_P
-            df_metrics_P.loc[site]['abs_bias_P (m)'] = abs_bias_site_P[0]
 
         # Create x-axis matching in situ data.
         x_start_wtd = df_tmp2_wtd.index[0]  # Start a-axis with the first day with an observed wtd value.
@@ -792,29 +1054,55 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, e
             color = ['m', '#1f77b4']
         elif '/Natural' in outpath:
             color = ['g', '#1f77b4']
+        elif 'CLSMTN' in exp:
+            color = ['g', '#1f77b4']
+        elif 'CLSMTD' in exp:
+            color = ['m', '#1f77b4']
         else:
             color = ['#1f77b4', '#1f77b4']
 
+        if '/Northern/' in outpath:
+            color_short = 'darkorange'
+        elif '/CLSM/' in outpath:
+            color_short = 'dimgray'
+        elif '/Drained' in outpath:
+            color_short = 'm'
+        elif '/Natural' in outpath:
+            color_short = 'g'
+        elif 'CLSMTN' in exp:
+            color_short = 'g'
+        elif 'CLSMTD' in exp:
+            color_short = 'm'
+        else:
+            color_short = '#1f77b4'
+
         ax1 = plt.subplot2grid((3, 3), (0, 0), rowspan=1, colspan=3, fig=None)
+        ax1.set_ylabel('zbar [m]')
         df_tmp_wtd = df_tmp_wtd[['data_mod', 'data_obs']]
-        df_tmp_wtd.plot(ax=ax1, fontsize=fontsize, style=['-', '.'], color=color, linewidth=2, markersize=4.5,
-                        xlim=Xlim_wtd)
-        # this can be used to define the axes of certain sites. and replace the above line
+        df_tmp_wtd.plot(ax=ax1, fontsize=fontsize, style=['-', '.'], color=color, linewidth=2, markersize=4.5, xlim= Xlim_wtd)
+        ax5 = ax1.twinx()
+        ax5.set_ylabel('Moisture content')
+        rzmc_mod[site].plot(ax=ax5, x_compat=True, fontsize=fontsize, style=['--'], color='cyan', linewidth=1.5, xlim= Xlim_wtd)  #ifzbar is not showing add: (ax=ax5, x_compat=True,...
+        sfmc_mod[site].plot(ax=ax5, x_compat=True, fontsize=fontsize, style=['--'], color='palegreen', linewidth=1.5, xlim= Xlim_wtd)
+        legendLines = [matplotlib.lines.Line2D([0], [0], color=color_short, linewidth=2),matplotlib.lines.Line2D([0], [0], color='#1f77b4', linewidth=2), matplotlib.lines.Line2D([0], [0], color='cyan', linewidth=2), matplotlib.lines.Line2D([0], [0], color='palegreen', linewidth=2)]
+        ax1.legend(legendLines, ['wtd_mod','wtd_obs','rzmc', 'sfmc'])
+        #### this can be used to define the axes of certain sites. and replace the above line
         # if ('UndrainedPSF' in site ) or ('DrainedPSF' in site):
         #    df_tmp_wtd.plot(ax=ax1, fontsize=fontsize, style=['-','.'], color=color, linewidth=2, markersize=4.5, xlim=Xlim_wtd, ylim=[-2.0, 0.2])
         # else:
         #    df_tmp_wtd.plot(ax=ax1, fontsize=fontsize, style=['-','.'], color=color, linewidth=2, markersize=4.5, xlim=Xlim_wtd)
-        plt.ylabel('zbar [m]')
+        #plt.ylabel('zbar [m]')
 
         Title = site + '\n' + ' bias = ' + str(bias_site[0]) + ', ubRMSD = ' + str(
-            ubRMSD_site[0]) + ', Pearson_R = ' + str(pearson_R_site[0]) + ', RMSD = ' + str(
-            RMSD_site) + ' abs_bias = ' + str(abs_bias_site[0])
+            ubRMSD_site[0]) + ', R = ' + str(pearson_R_site[0]) + ', RMSD = ' + str(
+            RMSD_site) + ' anomR = ' + str(anomR_site[0])
         plt.title(Title)
 
         ax2 = plt.subplot2grid((3, 3), (1, 0), rowspan=1, colspan=3, fig=None)
         df_zscore = df_zscore[['data_mod', 'data_obs']]
         df_zscore.plot(ax=ax2, fontsize=fontsize, style=['-', '-'], color=color, linewidth=2, xlim=Xlim_wtd)
         plt.ylabel('z-score')
+        plt.legend('P_mod', 'P_obs')
 
         if (-10) in set(df_tmp_precip['data_obs']):
             ax3 = plt.subplot2grid((3, 3), (2, 0), rowspan=1, colspan=3, fig=None)
@@ -823,10 +1111,11 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, e
                                xlim=Xlim_wtd)
             plt.ylabel('precipitation [mm/d]')
         else:
-            ax3 = plt.subplot2grid((3, 3), (2, 0), rowspan=1, colspan=2, fig=None)
+            ax3 = plt.subplot2grid((3, 3), (2, 0), rowspan=1, colspan=3, fig=None)
             df_tmp_precip = df_tmp_precip[['data_mod', 'data_obs']]
             df_tmp_precip.plot(ax=ax3, fontsize=fontsize, style=['-', '.'], color=color, linewidth=2, markersize=4.5,
                                xlim=Xlim_wtd)
+            plt.ylim([0, 120])
             plt.ylabel('precipitation [mm/d]')
 
             # Sebastian added #to plot the obs vs meas rainfall and 1/1line
@@ -839,12 +1128,14 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, e
             # plt.xticks(np.arange(0, 121, step=20))
             # plt.yticks(np.arange(0, 251, step=50))
 
-            ax4 = plt.subplot2grid((3, 3), (2, 2), rowspan=1, colspan=2, fig=None)
-            df_tmp_precip_sum = df_tmp_precip.dropna(axis=0, how='any')
-            df_tmp_precip_sum = df_tmp_precip_sum[['data_mod', 'data_obs']].cumsum(skipna=True)
-            df_tmp_precip_sum.plot(ax=ax4, fontsize=fontsize, style=['-', '-'], color=color, linewidth=2,
-                                   markersize=0.5, xlim=Xlim_wtd)
-            plt.ylabel('Cumulative precipitation [mm/d]')
+
+            #cumulative rainfall plot (adjust the colspan to 2 in ax3)
+            #ax4 = plt.subplot2grid((3, 3), (2, 2), rowspan=1, colspan=2, fig=None)
+            #df_tmp_precip_sum = df_tmp_precip.dropna(axis=0, how='any')
+            #df_tmp_precip_sum = df_tmp_precip_sum[['data_mod', 'data_obs']].cumsum(skipna=True)
+            #df_tmp_precip_sum.plot(ax=ax4, fontsize=fontsize, style=['-', '-'], color=color, linewidth=2,
+            #                       markersize=0.5, xlim=Xlim_wtd)
+            #plt.ylabel('Cumulative precipitation [mm/d]')
 
         plt.tight_layout()
         fname = site
@@ -852,15 +1143,165 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, e
         plt.savefig(fname_long, dpi=150)
         plt.close()
 
+        #plot the anomalies
+        if threeYears >= 1095:
+            plt.figure(figsize=(20, 5))
+            fontsize = 12
+            anomalies.plot( fontsize=fontsize, style=['-', '.'], color=color, linewidth=2, markersize=4.5,
+                               xlim=Xlim_wtd)
+            plt.axhline(y=0,xmin=0, xmax=1,color='grey', linestyle = '--')
+            plt.ylabel('WTD anomalies (m)')
+            plt.tight_layout()
+            fname = site
+            fname_long = os.path.join(outpath + '/anomaly_' + fname + '.png')
+            plt.savefig(fname_long, dpi=150)
+            plt.close()
+        else:
+            print('No anomaly calculation, too short timeseries')
+
+        # fig2
+        plt.figure(figsize=(16, 9))
+        fontsize = 12
+        moisture_all = pd.concat((wtd_mod[site], sfmc_mod[site], rzmc_mod[site], srfexc[site], rzexc[site], catdef[site]), axis=1,
+                             join='inner')
+        moisture_all.columns = ['zbar', 'sfmc', 'rzmc', 'srfexc', 'rzexc', 'catdef']
+
+        ax1 = plt.subplot2grid((3, 3), (0, 0), rowspan=1, colspan=1, fig=None)
+        moisture_all.plot(ax=ax1, y='zbar', x='catdef', fontsize=fontsize, style=['.'], color=color_short, markersize=4)
+        plt.ylabel('zbar', fontsize=20)
+        plt.xlabel('catdef', fontsize=20)
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        ax2 = plt.subplot2grid((3, 3), (0, 1), rowspan=1, colspan=1, fig=None)
+        moisture_all.plot(ax=ax2, y='zbar', x='rzexc', fontsize=fontsize, style=['.'], color=color_short, markersize=4)
+        plt.ylabel('zbar', fontsize=20)
+        plt.xlabel('rzexc', fontsize=20)
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        ax3 = plt.subplot2grid((3, 3), (0, 2), rowspan=1, colspan=1, fig=None)
+        moisture_all.plot(ax=ax3, y='zbar', x='rzmc', fontsize=fontsize, style=['.'], color=color_short, markersize=4)
+        plt.ylabel('zbar', fontsize=20)
+        plt.xlabel('rzmc', fontsize=20)
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        ax4 = plt.subplot2grid((3, 3), (1, 0), rowspan=1, colspan=1, fig=None)
+        moisture_all.plot(ax=ax4, y='zbar', x='srfexc', fontsize=fontsize, style=['.'], color=color_short, markersize=4)
+        plt.ylabel('zbar', fontsize=20)
+        plt.xlabel('srfexc', fontsize=20)
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        ax5 = plt.subplot2grid((3, 3), (1, 1), rowspan=1, colspan=1, fig=None)
+        moisture_all.plot(ax=ax5, y='zbar', x='sfmc', fontsize=fontsize, style=['.'], color=color_short, markersize=4)
+        plt.ylabel('zbar', fontsize=20)
+        plt.xlabel('sfmc', fontsize=20)
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        ax6 = plt.subplot2grid((3, 3), (1, 2), rowspan=1, colspan=1, fig=None)
+        moisture_all.plot(ax=ax6, y='catdef', x='srfexc', fontsize=fontsize, style=['.'], color=color_short, markersize=4)
+        plt.ylabel('catdef', fontsize=20)
+        plt.xlabel('srfexc', fontsize=20)
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        ax7 = plt.subplot2grid((3, 3), (2, 0), rowspan=1, colspan=1, fig=None)
+        moisture_all.plot(ax=ax7, y='catdef', x='rzexc', fontsize=fontsize, style=['.'], color=color_short, markersize=4)
+        plt.ylabel('catdef', fontsize=20)
+        plt.xlabel('rzexc', fontsize=20)
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        ax8 = plt.subplot2grid((3, 3), (2, 1), rowspan=1, colspan=1, fig=None)
+        moisture_all.plot(ax=ax8, y='srfexc', x='sfmc', fontsize=fontsize, style=['.'], color=color_short, markersize=4)
+        plt.ylabel('srfexc', fontsize=20)
+        plt.xlabel('sfmc', fontsize=20)
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        ax9 = plt.subplot2grid((3, 3), (2, 2), rowspan=1, colspan=1, fig=None)
+        moisture_all.plot(ax=ax9, y='rzexc', x='rzmc', fontsize=fontsize, style=['.'], color=color_short, markersize=4)
+        plt.ylabel('rzexc', fontsize=20)
+        plt.xlabel('rzmc', fontsize=20)
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+
+        plt.tight_layout()
+        fname = site
+        fname_long = os.path.join(outpath + '/moistureVar' + fname + '.png')
+        plt.savefig(fname_long, dpi=150)
+        plt.close()
+
+        #fig3
+        plt.figure(figsize=(16, 8.5))
+        fontsize = 12
+
+        ax1 = plt.subplot2grid((3, 3), (0, 0), rowspan=1, colspan=3, fig=None)
+        ax1.set_ylabel('catdef (mm)')
+        catdef[site] = -catdef[site]
+        catdef[site].plot(ax=ax1, fontsize=fontsize, style=['--'], color=color_short, linewidth=2, markersize=4.5, xlim=Xlim_wtd)
+        ax4 = ax1.twinx()
+        ax4.set_ylabel('Moisture content (m³/m³)')
+        rzmc_mod[site].plot(ax=ax4, fontsize=fontsize, style=['--'], color='cyan', linewidth=1.5, xlim=Xlim_wtd)  # ifzbar is not showing add: (ax=ax5, x_compat=True,...
+        sfmc_mod[site].plot(ax=ax4, fontsize=fontsize, style=['--'], color='palegreen', linewidth=1.5, xlim=Xlim_wtd)
+        legendLines = [matplotlib.lines.Line2D([0], [0], color=color_short, linewidth=2), matplotlib.lines.Line2D([0], [0], color='cyan', linewidth=2),
+                       matplotlib.lines.Line2D([0], [0], color='palegreen', linewidth=2)]
+        ax1.legend(legendLines, ['catdef', 'rzmc', 'sfmc'])
+
+        ax2 = plt.subplot2grid((3, 3), (1, 0), rowspan=1, colspan=3, fig=None)
+        ax2.set_ylabel('Moisture content (m³/m³)')
+        rzmc_mod[site].plot(ax=ax2, fontsize=fontsize, style=['--'], color='cyan', linewidth=1.5, xlim=Xlim_wtd)  # ifzbar is not showing add: (ax=ax5, x_compat=True,...
+        sfmc_mod[site].plot(ax=ax2, fontsize=fontsize, style=['--'], color='palegreen', linewidth=1.5, xlim=Xlim_wtd)
+        ax5 = ax2.twinx()
+        ax5.set_ylabel('Moisture transfer (mm)')
+        srfexc[site].plot(ax=ax5, fontsize=fontsize, style=['--'], color='b', linewidth=1.5, xlim=Xlim_wtd)
+        rzexc[site].plot(ax=ax5, fontsize=fontsize, style=['--'], color='g', linewidth=1.5, xlim=Xlim_wtd)
+        legendLines = [matplotlib.lines.Line2D([0], [0], color='cyan', linewidth=2),
+                       matplotlib.lines.Line2D([0], [0], color='palegreen', linewidth=2), matplotlib.lines.Line2D([0], [0], color='b', linewidth=2), matplotlib.lines.Line2D([0], [0], color='g', linewidth=2)]
+        ax2.legend(legendLines, ['rzmc', 'sfmc', 'srfexc', 'rzexc'])
+
+        ax3 = plt.subplot2grid((3, 3), (2, 0), rowspan=1, colspan=3, fig=None)
+        ax3.set_ylabel('catdef (mm)')
+        catdef[site].plot(ax=ax3, fontsize=fontsize, style=['--'], color=color_short, linewidth=1.5, xlim=Xlim_wtd)
+        ax6 = ax3.twinx()
+        ax6.set_ylabel('Precipitation + RZEXC (mm/day)')
+        precip_mod[site].plot(ax=ax6, fontsize=fontsize, style=['--'], color='gray', linewidth=1.5, xlim=Xlim_wtd)
+        rzexc[site].plot(ax=ax6, fontsize=fontsize, style=['--'], color='g', linewidth=1.5, xlim=Xlim_wtd)
+        plt.ylim([-100, 100])
+        legendLines = [matplotlib.lines.Line2D([0], [0], color=color_short, linewidth=2), matplotlib.lines.Line2D([0], [0], color='g', linewidth=2), matplotlib.lines.Line2D([0], [0], color='gray', linewidth=2)]
+        ax3.legend(legendLines, ['catdef','rzexc', 'precip'])
+
+        plt.tight_layout()
+        fname = site
+        fname_long = os.path.join(outpath + '/moistureTS' + fname + '.png')
+        plt.savefig(fname_long, dpi=150)
+        plt.close()
+
+        #SA! added this temporarly for Dwi, needs this in fire simulations
+        #if (site == 'Dwi_1'):
+        #    Dwi_wtd= wtd_mod[site]
+        #    Dwi_rzmc= rzmc_mod[site]
+        #    Dwi_sfmc= sfmc_mod[site]
+        #    Dwi_precip= precip_mod[site]
+        #    df_Dwi=pd.concat([Dwi_wtd, Dwi_rzmc, Dwi_sfmc,Dwi_precip],axis=1)
+        #    df_Dwi = df_Dwi.loc['2018-9-14':'2018-10-18']
+        #    print(df_Dwi)
+        #    path_changing = os.path.join(outpath + '_Dwi.csv')
+        #    df_Dwi.to_csv(path_changing, index=True, header=['WTD [m]', 'RZMC [m3/m3]','SFMC [m3/m3]','PRECIP [mm]'])
+
+
     df_allmetrics = df_metrics.join(df_metrics_P)
-    df_allmetrics_new = df_allmetrics[df_allmetrics['Pearson_R_P (-)'] > 0.28].dropna()
+    df_allmetrics_new = df_allmetrics[df_allmetrics['R_P (-)'] > 0.28].dropna()
     # df_all_biasP= (df_allmetrics_new['abs_bias_P (m)']-df_allmetrics_new['abs_bias_P (m)'].min())/(df_allmetrics_new['abs_bias_P (m)'].max()-df_allmetrics_new['abs_bias_P (m)'].min())
     # df_all_RWTD= (df_allmetrics_new['Pearson_R (-)']-df_allmetrics_new['Pearson_R (-)'].min())/(df_allmetrics_new['Pearson_R (-)'].max()-df_allmetrics_new['Pearson_R (-)'].min())
-    df_all_biasP = df_allmetrics_new['abs_bias_P (m)']
-    df_all_RWTD = df_allmetrics_new['Pearson_R (-)']
-    df_all_biasP = pd.DataFrame(df_all_biasP)
+
+    df_all_RWTD = df_allmetrics_new['R (-)']
+    #df_all_biasP = pd.DataFrame(df_all_biasP)
     df_all_RWTD = pd.DataFrame(df_all_RWTD)
-    df_allWTDP = df_all_biasP.join(df_all_RWTD)
+    #df_allWTDP = df_all_biasP.join(df_all_RWTD)
 
     # Plot boxplot for metrics of WTD only
     plt.figure()
@@ -870,15 +1311,15 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, e
     mean = df_metrics.mean()
     mean = mean.round(decimals=3)
     Title = 'mean bias (m) = ' + str(mean['bias (m)']) + ', mean ubRMSD (m) = ' + str(
-        mean['ubRMSD (m)']) + ', mean Pearson_R (-) = ' + str(mean['Pearson_R (-)']) + '\n' + ' mean RMSD (m) = ' + str(
-        mean['RMSD (m)']) + ', mean abs_bias (m) = ' + str(mean['abs_bias (m)'])
+        mean['ubRMSD (m)']) + ', mean R (-) = ' + str(mean['R (-)']) + '\n' + ' mean RMSD (m) = ' + str(
+        mean['RMSD (m)']) + ', mean anomR (m) = ' + str(mean['anomR (-)'])
     plt.title(Title, fontsize=9)
     plt.savefig(fname_long, dpi=150)
     plt.close()
 
     # Sebastian added this to export the skillmetrics of each run so that it can be combined in 1 figure
     skillpath = '/data/leuven/324/vsc32460/FIG/'
-    fname = 'skillmetrics_' + outpath[52:55] + '_Drained' + exp[0:2] + '_' + exp[-14:-4] + '.csv'
+    fname = 'skillmetrics_' + 'M09' + exp + '.csv'
     df_metrics.to_csv(skillpath + fname, index=True, header=True)
 
     # comparison of abs bias P to WTD R
@@ -953,7 +1394,7 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, e
     # skillmetrics_parameters_csv = df_metrics.to_csv (path_changing, index = True, header=True)
 
 
-def plot_skillmetrics_comparison_wtd_multimodel(wtd_obs, wtd_mod, precip_obs, exp, outpath):
+def plot_skillmetrics_comparison_wtd_multimodel(wtd_obs, wtd_mod, precip_obs, precip_mod, sfmc_mod, rzmc_mod, srfexc, rzexc, catdef, exp, outpath):
     # Initiate dataframe to store metrics in.
     INDEX = wtd_obs.columns
     COL = ['bias', 'ubRMSD', 'Pearson_R', 'RMSD']
@@ -985,13 +1426,13 @@ def plot_skillmetrics_comparison_wtd_multimodel(wtd_obs, wtd_mod, precip_obs, ex
         bias_site = metrics.bias(df_tmp2)  # Bias = bias_site[0]
         ubRMSD_site = metrics.ubRMSD(df_tmp2)  # ubRMSD = ubRMSD_site[0]
         pearson_R_site = metrics.Pearson_R(df_tmp2)  # Pearson_R = pearson_R_site[0]
-        RMSD_site = (ubRMSD_site[0] ** 2 + bias_site[0] ** 2) ** 0.5
+        #RMSD_site = (ubRMSD_site[0] ** 2 + bias_site[0] ** 2) ** 0.5
 
         # Save metrics in df_metrics.
-        df_metrics.loc[site]['bias'] = bias_site[0]
-        df_metrics.loc[site]['ubRMSD'] = ubRMSD_site[0]
-        df_metrics.loc[site]['Pearson_R'] = pearson_R_site[0]
-        df_metrics.loc[site]['RMSD'] = RMSD_site
+        #df_metrics.loc[site]['bias'] = bias_site[0]
+        #df_metrics.loc[site]['ubRMSD'] = ubRMSD_site[0]
+        #df_metrics.loc[site]['Pearson_R'] = pearson_R_site[0]
+        #df_metrics.loc[site]['RMSD'] = RMSD_site
 
         # Create x-axis matching in situ data.
         x_start = df_tmp2.index[0]  # Start a-axis with the first day with an observed wtd value.
@@ -1032,12 +1473,12 @@ def plot_skillmetrics_comparison_wtd_multimodel(wtd_obs, wtd_mod, precip_obs, ex
         plt.close()
 
     # Plot boxplot for metrics
-    plt.figure()
-    df_metrics.boxplot()
-    fname = 'metrics'
-    fname_long = os.path.join(outpath + '/comparison_insitu_data/' + fname + '.png')
-    plt.savefig(fname_long, dpi=150)
-    plt.close()
+    #plt.figure()
+    #df_metrics.boxplot()
+    #fname = 'metrics'
+    #fname_long = os.path.join(outpath + '/comparison_insitu_data/' + fname + '.png')
+    #plt.savefig(fname_long, dpi=150)
+    #plt.close()
 
 
 def plot_delta_spinup(exp1, exp2, domain, root, outpath):
