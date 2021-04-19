@@ -13,7 +13,7 @@ import seaborn as sns
 import math as math
 import matplotlib.pyplot as plt
 from sklearn import linear_model
-#from mpl_toolkits.basemap import Basemap
+from mpl_toolkits.basemap import Basemap
 from matplotlib.colors import LogNorm
 from pyldas.grids import EASE2
 from pyldas.interface import LDAS_io
@@ -27,6 +27,7 @@ import sys
 from scipy import stats
 import pymannkendall as mk
 import copy
+from sympy import symbols,diff
 import statsmodels.api as sm
 
 
@@ -107,6 +108,198 @@ def plot_all_variables_temporal_moments(exp, domain, root, outpath, param='daily
                               urcrnrlat=urcrnrlat,
                               llcrnrlon=llcrnrlon, urcrnrlon=urcrnrlon, outpath=outpath, exp=exp, fname=fname,
                               plot_title=plot_title)
+
+def plot_all_temporal_maps(exp, domain, root, outpath, param='daily'):
+    # plot temporal mean and standard deviation of the paper variables
+    def create_figure_maps(exp, domain, root, outpath):
+        outpath = os.path.join(outpath, 'maps')
+        if not os.path.exists(outpath):
+            os.makedirs(outpath, exist_ok=True)
+
+        io = LDAS_io(param, exp=exp, domain=domain, root=root)
+        [lons, lats, llcrnrlat, urcrnrlat, llcrnrlon, urcrnrlon] = setup_grid_grid_for_plot(io)
+
+        #m1 is the mean nc file
+        try:
+            m1 = xr.open_dataset(os.path.join(root, exp, 'output_postprocessed/', param + '_mean.nc'))
+        except:
+            m1 = io.timeseries.mean(axis=0)
+        #m2 is the std nc files
+        try:
+            m2 = xr.open_dataset(os.path.join(root, exp, 'output_postprocessed/', param + '_std.nc'))
+        except:
+            m2 = io.timeseries.std(axis=0)
+
+        #read in the catparam to use poros as a filter and creat masked data array of poros
+        params = LDAS_io(exp=exp, domain=domain, root=root).read_params('catparam')
+        # land fraction, if more than 0
+        frac_cell = io.grid.tilecoord.frac_cell.values
+        par = 'poros'
+        tc = io.grid.tilecoord
+        tg = io.grid.tilegrids
+
+        params[par].values[np.all(np.vstack((frac_cell < 0.95, params['poros'].values > 0.65)), axis=0)] = 1.0
+        params[par].values[params['poros'].values < 0.65] = np.nan
+        params[par].values[np.all(np.vstack((params['poros'].values < 0.95, params['poros'].values > 0.65)), axis=0)] = 1.0
+        img = np.full(lons.shape, np.nan)
+        img[tc.j_indg.values, tc.i_indg.values] = params[par].values
+        data = np.ma.masked_invalid(img)
+        maskt = np.ma.getmask(data)
+
+        if exp[:2] == 'IN':
+            figsize = (30, 20)
+        else:
+            figsize = (25, 25)
+
+        runoff = m1.data_vars['runoff']
+        Rainf = m1.data_vars['Rainf']
+        lhflux = m1.data_vars['lhflux']
+        LWdown = m1.data_vars['LWdown']
+        SWdown = m1.data_vars['SWdown']
+        lwup = m1.data_vars['lwup']
+        swup = m1.data_vars['swup']
+        shflux = m1.data_vars['shflux']
+        Rnet = (LWdown+SWdown)-(swup+lwup)
+        RP_eff = runoff/Rainf
+        EReff = lhflux/Rnet
+        BR = shflux/lhflux
+        zbar = m1.data_vars['zbar']
+        sfmc = m1.data_vars['sfmc']
+
+        variables=['zbar', 'sfmc', 'RP_eff', 'EReff', 'BR','runoff','Rainf','Rnet','lhflux']
+
+        #plots for zbar and
+        #variables = ['zbar', 'sfmc']
+        for i in variables:
+            da =eval(i)
+            varname= i
+            tmp_data = da
+
+            masked_var = np.ma.masked_array(da, mask = maskt)
+            mean = np.mean(masked_var)
+            mean = np.round(mean,2)
+            sd =np.std(masked_var)
+            sd =np.round(sd,2)
+
+            plt_img = np.ma.masked_invalid(masked_var)
+            fname = exp + '_' + varname + '_mean'
+            plot_title = varname + '_mean, m = ' + str(mean) + ', sd = ' + str(sd)
+            outpath_mean = outpath + '_mean'
+
+            if varname == 'zbar':
+                if ('TN' in exp) or ('TD' in exp):
+                    cmin = -1.2
+                    cmax = 0.0
+                else:
+                    cmin = -5.0
+                    cmax = 1.0
+            elif varname == 'sfmc':
+                if ('TN' in exp) or ('TD' in exp):
+                    cmin = 0.4
+                    cmax = 0.8
+                else:
+                    cmin = 0.4
+                    cmax = 0.8
+            elif varname == 'RP_eff':
+                cmin = 0.0
+                cmax = 0.7
+            elif varname == 'EReff':
+                cmin = 0.4
+                cmax = 1.0
+            elif varname == 'BR':
+                cmin = 0.0
+                cmax = 0.6
+            else:
+                cmin=None
+                cmax=None
+
+            if varname == 'BR':
+                figure_single_default(data=plt_img, lons=lons, lats=lats, cmin=cmin, cmax=cmax, llcrnrlat=llcrnrlat,
+                                urcrnrlat=urcrnrlat, llcrnrlon=llcrnrlon, urcrnrlon=urcrnrlon, outpath=outpath_mean, exp=exp, fname=fname, plot_title = plot_title, cmap='coolwarm')
+            else:
+                figure_single_default(data=plt_img, lons=lons, lats=lats, cmin=cmin, cmax=cmax, llcrnrlat=llcrnrlat,
+                                      urcrnrlat=urcrnrlat, llcrnrlon=llcrnrlon, urcrnrlon=urcrnrlon, outpath=outpath_mean, exp=exp, fname=fname, plot_title=plot_title)
+        runoff = m2.data_vars['runoff']
+        Rainf = m2.data_vars['Rainf']
+        evap = m2.data_vars['evap']
+        LWdown = m2.data_vars['LWdown']
+        SWdown = m2.data_vars['SWdown']
+        lwup = m2.data_vars['lwup']
+        swup = m2.data_vars['swup']
+        shflux = m2.data_vars['shflux']
+        Rnet = (LWdown+SWdown)-(swup+lwup)
+        RP_eff = runoff/Rainf
+        EReff = evap/Rnet
+        BR = shflux/evap
+        zbar = m2.data_vars['zbar']
+        sfmc = m2.data_vars['sfmc']
+
+        variables=['zbar', 'sfmc']
+
+        #standard deviation plots only for sfmc and WTD
+        for i in variables:
+            da =eval(i)
+            varname= i
+            tmp_data = da
+
+            masked_var = np.ma.masked_array(da, mask = maskt)
+            mean = np.mean(masked_var)
+            mean = np.round(mean,2)
+            sd =np.std(masked_var)
+            sd =np.round(sd,2)
+
+            plt_img = np.ma.masked_invalid(masked_var)
+            fname = exp + '_' + varname + '_std'
+            plot_title = varname + '_std, m = ' + str(mean) + ', sd = ' + str(sd)
+            outpath_sd = outpath + '_sd'
+
+            if varname == 'zbar':
+                if ('TN' in exp) or ('TD' in exp):
+                    cmin = 0.1
+                    cmax = 0.6
+                else:
+                    cmin = 0.5
+                    cmax = 2.0
+            elif varname == 'sfmc':
+                if ('TN' in exp) or ('TD' in exp):
+                    cmin = 0.00
+                    cmax = 0.14
+                else:
+                    cmin = 0.00
+                    cmax = 0.14
+
+            figure_single_default(data=plt_img, lons=lons, lats=lats, cmin=cmin, cmax=cmax, llcrnrlat=llcrnrlat,
+                                urcrnrlat=urcrnrlat, llcrnrlon=llcrnrlon, urcrnrlon=urcrnrlon, outpath=outpath_sd, exp=exp, fname=fname, plot_title = plot_title, cmap = 'coolwarm')
+
+
+    # SA TN
+    root = '/staging/leuven/stg_00024/OUTPUT/sebastiana'
+    exp = 'SAMERICA_M09_PEATCLSMTN_v01'
+    create_figure_maps(exp, domain, root, outpath)
+
+    # SA CLSM
+    exp = 'SAMERICA_M09_CLSM_v01'
+    create_figure_maps(exp, domain, root, outpath)
+
+    # CO
+    exp = 'CONGO_M09_PEATCLSMTN_v01'
+    create_figure_maps(exp, domain, root, outpath)
+
+    # CO
+    exp = 'CONGO_M09_CLSM_v01'
+    create_figure_maps(exp, domain, root, outpath)
+
+    # IN TN
+    exp = 'INDONESIA_M09_PEATCLSMTN_v01'
+    create_figure_maps(exp, domain, root, outpath)
+
+    # IN TD
+    exp = 'INDONESIA_M09_PEATCLSMTD_v01'
+    create_figure_maps(exp, domain, root, outpath)
+
+    # IN CLSM
+    exp = 'INDONESIA_M09_CLSM_v01'
+    create_figure_maps(exp, domain, root, outpath)
 
 
 def plot_catparams(exp, domain, root, outpath):
@@ -196,7 +389,7 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         x_start_et = df_tmp2_et.index[0]  # Start a-axis with the first day with an observed wtd value.
         x_end_et = df_tmp2_et.index[-1]  # End a-axis with the last day with an observed wtd value.
         Xlim_wtd = [x_start_et, x_end_et]
-
+        Xlim_wtd_e = [x_start_et, df_tmp2_et.index[-191]]
         # xlim to check only the first year of data
         # Xlim_wtd = [df_tmp2_et.index[365+365], df_tmp2_et.index[365+365+364]]
 
@@ -218,6 +411,31 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
             color = ['m', '#1f77b4']
         else:
             color = ['#1f77b4', '#1f77b4']
+
+
+        #figures for the paper
+        fontsize = 24
+        df_tmp_et = df_tmp_et[['data_mod', 'data_obs']]
+        df_tmp_et.plot(figsize=(20, 5), fontsize=fontsize, style=['-', '.'], color=color, linewidth=2.5, markersize=6.5,
+                        xlim=Xlim_wtd, legend=False)
+        plt.ylabel('ET (mm/day)', fontsize=fontsize)
+        plt.tick_params(axis='x', which='minor', bottom=False, top=False, labelbottom=False)  # minor xticks
+        plt.tick_params(axis='x', which='major', bottom=True, top=False, labelbottom=True)  # minor xticks
+        plt.ylim([0, 8])
+        plt.tight_layout()
+        fname = site + '_' + exp
+        if 'TD' in exp:
+            fname_long = os.path.join(
+                '/data/leuven/324/vsc32460/FIG/in_situ_comparison/paper/timeseries_ET/' + fname + '_TD' + '.png')
+        elif 'TN' in exp:
+            fname_long = os.path.join(
+                '/data/leuven/324/vsc32460/FIG/in_situ_comparison/paper/timeseries_ET/' + fname + '.png')
+        else:
+            fname_long = os.path.join(
+                '/data/leuven/324/vsc32460/FIG/in_situ_comparison/paper/timeseries_ET/' + fname + '_CLSM' + '.png')
+        plt.savefig(fname_long, dpi=350)
+        plt.close()
+
 
         # fig1
         fig1 = plt.figure(figsize=(16, 8.5))
@@ -509,13 +727,15 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         ETpot_mod = pd.Series.to_frame(ETpot_mod)
         ETpot_obs = pd.Series.to_frame(ETpot_obs)
 
-        if site is 'UndrainedPSF' or 'DrainedPSF':
-            norm_et_wtd_obs.to_csv(
-                r'/data/leuven/324/vsc32460/FIG/in_situ_comparison/IN/Natural/ET/ETpot_WTD_obs' + site + '.csv',
-                index=True, header=True)
-            norm_et_wtd_mod.to_csv(
-                r'/data/leuven/324/vsc32460/FIG/in_situ_comparison/IN/Natural/ET/ETpot_WTD_mod' + site + '.csv',
-                index=True, header=True)
+        #if site is 'UndrainedPSF' or 'DrainedPSF':
+        #    norm_et_wtd_obs.to_csv(
+        #        r'/data/leuven/324/vsc32460/FIG/in_situ_comparison/IN/Natural/ET/ETpot_WTD_obs' + site + '.csv',
+        #        index=True, header=True)
+        #    norm_et_wtd_mod.to_csv(
+        #        r'/data/leuven/324/vsc32460/FIG/in_situ_comparison/IN/Natural/ET/ETpot_WTD_mod' + site + '.csv',
+        #        index=True, header=True)
+        #else:
+        #    print('Not DrainedPSF or UndrainedPSF')
 
         # fig6
         fig6 = plt.figure(figsize=(20, 12))
@@ -678,66 +898,68 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
             y_grid = scipy.interpolate.interp1d(x_s, y_sm, fill_value='extrapolate')(xgrid)
             return y_grid
         xgrid = np.linspace(pot_et_wtd_mod['wtd_obs'].min(), pot_et_wtd_mod['wtd_obs'].max())
-        K = 501
+        K = 1000
 
         ax1 = plt.subplot2grid((2, 2), (0, 0), fig=None)
-        pot_et_wtd_obs.plot(ax=ax1, y='pot_et_obs', x='wtd_obs', fontsize=fontsize, style=['.'], color='#1f77b4', markersize=4)
+        pot_et_wtd_obs.plot(ax=ax1, y='pot_et_obs', x='wtd_obs', fontsize=fontsize+4, style=['.'], color='#1f77b4', markersize=4)
         smooths = np.stack([smooth(pot_et_wtd_obs['wtd_obs'], pot_et_wtd_obs['pot_et_obs'], xgrid) for k in range(K)]).T
         mean = np.nanmean(smooths, axis=1)
         stderr = scipy.stats.sem(smooths, axis=1)
         stderr = np.nanstd(smooths, axis=1, ddof=0)
         plt.plot(xgrid, mean, color='k', linewidth=3.5)
         plt.fill_between(xgrid, mean - 1.96 * stderr, mean + 1.96 * stderr, alpha=0.25)
-        plt.ylabel('In situ potential\n  ET (mm/day)', fontsize=20)
-        plt.xlabel('In situ water table depth (m)', fontsize=20)
+        plt.ylabel('In situ potential\n  ET (mm/day)', fontsize=fontsize+24)
         plt.ylim([1, 8.6])
+        plt.xlabel('')
 
         ax2 = plt.subplot2grid((2, 2), (0, 1), rowspan=1, colspan=1, fig=None)
-        pot_et_wtd_mod.plot(ax=ax2, y='pot_et_mod', x='wtd_obs', fontsize=fontsize, style=['.'], color=color, markersize=4)
+        pot_et_wtd_mod.plot(ax=ax2, y='pot_et_mod', x='wtd_obs', fontsize=fontsize+4, style=['.'], color=color, markersize=4)
         smooths = np.stack([smooth(pot_et_wtd_mod['wtd_obs'], pot_et_wtd_mod['pot_et_mod'], xgrid) for k in range(K)]).T
         mean = np.nanmean(smooths, axis=1)
         stderr = scipy.stats.sem(smooths, axis=1)
         stderr = np.nanstd(smooths, axis=1, ddof=0)
         plt.plot(xgrid, mean, color='k', linewidth=3.5)
         plt.fill_between(xgrid, mean - 1.96 * stderr, mean + 1.96 * stderr, alpha=0.25)
-        plt.ylabel('Model potential\n  ET (mm/day)', fontsize=20)
-        plt.xlabel('In situ water table depth (m)', fontsize=20)
+        plt.ylabel('Model potential\n  ET (mm/day)', fontsize=fontsize+24)
         plt.ylim([1, 8.6])
+        plt.xlabel('')
 
 
         ax3 = plt.subplot2grid((2, 2), (1, 0), fig=None)
-        rn_wtd.plot(ax=ax3, y='rn_obs',x= 'wtd_obs', fontsize=fontsize, style=['.'], color='#1f77b4', markersize=4)
+        rn_wtd.plot(ax=ax3, y='rn_obs',x= 'wtd_obs', fontsize=fontsize+4, style=['.'], color='#1f77b4', markersize=4)
         smooths = np.stack([smooth(rn_wtd['wtd_obs'], rn_wtd['rn_obs'], xgrid) for k in range(K)]).T
         mean = np.nanmean(smooths, axis=1)
         stderr = scipy.stats.sem(smooths, axis=1)
         stderr = np.nanstd(smooths, axis=1, ddof=0)
         plt.plot(xgrid, mean, color='k', linewidth=3.5)
         plt.fill_between(xgrid, mean - 1.96 * stderr, mean + 1.96 * stderr, alpha=0.25)
-        plt.ylabel('rn_obs (W/m²)', fontsize=20)
-        plt.xlabel('wtd_obs (m)', fontsize=20)
+        plt.ylabel('In situ net radiation (W/m²)', fontsize=fontsize+24)
+        plt.xlabel('In situ WTD (m)', fontsize=fontsize+24)
         plt.ylim([30, 260])
 
         ax4 = plt.subplot2grid((2, 2), (1, 1), fig=None)
-        RN_wtd.plot(ax=ax4, y='rn_mod',x= 'wtd_obs', fontsize=fontsize, style=['.'], color=color, markersize=4)
+        RN_wtd.plot(ax=ax4, y='rn_mod',x= 'wtd_obs', fontsize=fontsize+4, style=['.'], color=color, markersize=4)
         smooths = np.stack([smooth(RN_wtd['wtd_obs'], RN_wtd['rn_mod'], xgrid) for k in range(K)]).T
         mean = np.nanmean(smooths, axis=1)
         stderr = scipy.stats.sem(smooths, axis=1)
         stderr = np.nanstd(smooths, axis=1, ddof=0)
         plt.plot(xgrid, mean, color='k', linewidth=3.5)
         plt.fill_between(xgrid, mean - 1.96 * stderr, mean + 1.96 * stderr, alpha=0.25)
-        plt.ylabel('rn_mod (W/m²)', fontsize=20)
-        plt.xlabel('wtd_obs (m)', fontsize=20)
+        plt.ylabel('Model net radiation (W/m²)', fontsize=fontsize+24)
+        plt.xlabel('In situ WTD (m)', fontsize=fontsize+24)
         plt.ylim([30, 260])
         ax1.get_legend().remove()
         ax2.get_legend().remove()
         ax3.get_legend().remove()
         ax4.get_legend().remove()
-        ax1.tick_params(axis='both', which='major', labelsize=18)
-        ax2.tick_params(axis='both', which='major', labelsize=18)
-        ax3.tick_params(axis='both', which='major', labelsize=18)
-        ax4.tick_params(axis='both', which='major', labelsize=18)
+        ax1.tick_params(axis='both', which='major', labelsize=fontsize+18)
+        ax2.tick_params(axis='both', which='major', labelsize=fontsize+18)
+        ax3.tick_params(axis='both', which='major', labelsize=fontsize+18)
+        ax4.tick_params(axis='both', which='major', labelsize=fontsize+18)
+        ax1.set_xticks([])
+        ax2.set_xticks([])
 
-        plt.tight_layout()
+        plt.tight_layout(w_pad=6,h_pad=4)
         fname = site
         fname_long = os.path.join(outpath + '/RnvsWTD' + fname + '.png')
         plt.savefig(fname_long, dpi=300)
@@ -960,6 +1182,10 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, s
     COL = ['bias (m)', 'RMSD (m)', 'ubRMSD (m)', 'R (-)', 'anomR (-)']
     df_metrics = pd.DataFrame(index=INDEX, columns=COL, dtype=float)
 
+    INDEX = wtd_obs.columns
+    COL = ['bias_l', 'bias_u', 'RMSD_l', 'RMSD_u', 'ubRMSD_l', 'ubRMSD_u', 'R_l', 'R_u', 'anomR_l', 'anomR_u']
+    df_metrics_CI = pd.DataFrame(index=INDEX, columns=COL, dtype=float)
+
     # Initiate dataframe to store metrics in of precipitation
     INDEX = precip_obs.columns
     COL = ['bias_P (m)', 'ubRMSD_P (m)', 'R_P (-)', 'RMSD_P (m)']
@@ -979,10 +1205,32 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, s
         df_tmp2_precip = copy.deepcopy(df_tmp_precip)
         df_tmp2_precip = df_tmp2_precip[['data_mod', 'data_obs']]
 
+        #to remove the flooding events in SA sites, both for the skill metrics as well for the plots
+        #if (('SAM_01' in site) or ('QT-2010-1' in site)):
+        #    df_tmp_wtd = df_tmp_wtd.drop(df_tmp_wtd[df_tmp_wtd['data_obs'] > 0.02].index)
+        #    df_tmp2_wtd = df_tmp2_wtd.drop(df_tmp2_wtd[df_tmp2_wtd['data_obs'] > 0.02].index)
+        #else:
+        #    print('ok')
+
         bias_site = metrics.bias(df_tmp2_wtd)  # Bias = bias_site[0]
         ubRMSD_site = metrics.ubRMSD(df_tmp2_wtd)  # ubRMSD = ubRMSD_site[0]
         pearson_R_site = metrics.Pearson_R(df_tmp2_wtd)  # Pearson_R = pearson_R_site[0]
-        RMSD_site = (ubRMSD_site[0] ** 2 + bias_site[0] ** 2) ** 0.5
+        RMSD_site = copy.deepcopy(ubRMSD_site)
+        RMSD_site[0] = (ubRMSD_site[0] ** 2 + bias_site[0] ** 2) ** 0.5
+
+        x = ubRMSD_site[0] #so x is ubRMSD_site[0]
+        y = bias_site[0] #so y is bias_site[0]
+        #x =symbols('x')
+        #y=symbols('y')
+        # = ((x**2) + (y**2)) **0.5
+        #derivative1 = diff(f,y)
+        #derivative2 =diff(f,x)
+        error_ubRMSD = (ubRMSD_site[6]-ubRMSD_site[5])/2
+        error_bias = (bias_site[6]-bias_site[5])/2
+        error_RMSD = ((1.0*x*(x**2 + y**2)**(-0.5))**2*(error_ubRMSD**2))+((1.0*x*(x**2 + y**2)**(-0.5))**2*(error_bias**2))**0.5
+        RMSD_site[5] = RMSD_site[0]-error_RMSD
+        RMSD_site[6] = RMSD_site[0]+error_RMSD
+
         #calculate anomalies only of 3 years or more of total data
         threeYears = df_tmp_wtd['data_obs'].count()
         if threeYears >= 1095:
@@ -995,22 +1243,36 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, s
             anomR_site = pd.Series(anomR_site,index=['R'])
 
         #calculate confidence intervals for each of the metrics
-        def pearsonr_ci(x, y, alpha=0.05):
-            r, p = stats.pearsonr(x, y)
-            r_z = np.arctanh(r)
-            se = 1 / np.sqrt(x.size - 3)
-            z = stats.norm.ppf(1 - alpha / 2)
-            lo_z, hi_z = r_z - z * se, r_z + z * se
-            lo, hi = np.tanh((lo_z, hi_z))
-            return lo, hi
-        
+        #def pearsonr_ci(x, y, alpha=0.05):
+        #    r, p = stats.pearsonr(x, y)
+        #    r_z = np.arctanh(r)
+        #    se = 1 / np.sqrt(x.size - 3)
+        #    z = stats.norm.ppf(1 - alpha / 2)
+        #    lo_z, hi_z = r_z - z * se, r_z + z * se
+        #   lo, hi = np.tanh((lo_z, hi_z))
+        #    return lo, hi
 
         # Save metrics in df_metrics.
         df_metrics.loc[site]['bias (m)'] = bias_site[0]
         df_metrics.loc[site]['ubRMSD (m)'] = ubRMSD_site[0]
         df_metrics.loc[site]['R (-)'] = pearson_R_site[0]
-        df_metrics.loc[site]['RMSD (m)'] = RMSD_site
+        df_metrics.loc[site]['RMSD (m)'] = RMSD_site[0]
         df_metrics.loc[site]['anomR (-)'] = anomR_site[0]
+
+        df_metrics_CI.loc[site]['bias_l'] = bias_site[5]
+        df_metrics_CI.loc[site]['bias_u'] = bias_site[6]
+        df_metrics_CI.loc[site]['ubRMSD_l'] = ubRMSD_site[5]
+        df_metrics_CI.loc[site]['ubRMSD_u'] = ubRMSD_site[6]
+        df_metrics_CI.loc[site]['R_l'] = pearson_R_site[6]
+        df_metrics_CI.loc[site]['R_u'] = pearson_R_site[7]
+        df_metrics_CI.loc[site]['RMSD_l'] = RMSD_site[5]
+        df_metrics_CI.loc[site]['RMSD_u'] = RMSD_site[6]
+        try:
+            df_metrics_CI.loc[site]['anomR_l'] = anomR_site[6]
+            df_metrics_CI.loc[site]['anomR_u'] = anomR_site[7]
+        except:
+            df_metrics_CI.loc[site]['anomR_l'] = anomR_site[0]
+            df_metrics_CI.loc[site]['anomR_u'] = anomR_site[0]
 
         if (-10) in set(df_tmp_precip['data_obs']):
             df_tmp_precip = df_tmp_precip
@@ -1082,8 +1344,8 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, s
         df_tmp_wtd.plot(ax=ax1, fontsize=fontsize, style=['-', '.'], color=color, linewidth=2, markersize=4.5, xlim= Xlim_wtd)
         ax5 = ax1.twinx()
         ax5.set_ylabel('Moisture content')
-        rzmc_mod[site].plot(ax=ax5, x_compat=True, fontsize=fontsize, style=['--'], color='cyan', linewidth=1.5, xlim= Xlim_wtd)  #ifzbar is not showing add: (ax=ax5, x_compat=True,...
-        sfmc_mod[site].plot(ax=ax5, x_compat=True, fontsize=fontsize, style=['--'], color='palegreen', linewidth=1.5, xlim= Xlim_wtd)
+        rzmc_mod[site].plot(ax=ax5, fontsize=fontsize, style=['--'], color='cyan', linewidth=1.5, xlim= Xlim_wtd)  #ifzbar is not showing add: (ax=ax5, x_compat=True,...
+        sfmc_mod[site].plot(ax=ax5, fontsize=fontsize, style=['--'], color='palegreen', linewidth=1.5, xlim= Xlim_wtd)
         legendLines = [matplotlib.lines.Line2D([0], [0], color=color_short, linewidth=2),matplotlib.lines.Line2D([0], [0], color='#1f77b4', linewidth=2), matplotlib.lines.Line2D([0], [0], color='cyan', linewidth=2), matplotlib.lines.Line2D([0], [0], color='palegreen', linewidth=2)]
         ax1.legend(legendLines, ['wtd_mod','wtd_obs','rzmc', 'sfmc'])
         #### this can be used to define the axes of certain sites. and replace the above line
@@ -1095,7 +1357,7 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, s
 
         Title = site + '\n' + ' bias = ' + str(bias_site[0]) + ', ubRMSD = ' + str(
             ubRMSD_site[0]) + ', R = ' + str(pearson_R_site[0]) + ', RMSD = ' + str(
-            RMSD_site) + ' anomR = ' + str(anomR_site[0])
+            RMSD_site[0]) + ' anomR = ' + str(anomR_site[0])
         plt.title(Title)
 
         ax2 = plt.subplot2grid((3, 3), (1, 0), rowspan=1, colspan=3, fig=None)
@@ -1142,6 +1404,23 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, s
         fname_long = os.path.join(outpath + '/comparison_insitu_data/' + fname + '.png')
         plt.savefig(fname_long, dpi=150)
         plt.close()
+
+        if (site == 'Taufik_UpperSebangau_PSF_daily') or (site =='Kalteng1') or (site =='QT-2010-1') or (site =='Itanga_avg'):
+            fontsize=24
+            df_tmp_wtd = df_tmp_wtd[['data_mod', 'data_obs']]
+            df_tmp_wtd.plot(figsize=(20,5),fontsize=fontsize, style=['-', '.'], color=color, linewidth=3, markersize=5.5, xlim=Xlim_wtd,legend=False)
+            plt.ylabel('WTD (m)', fontsize=fontsize)
+            plt.tick_params(axis='x', which='minor', bottom=False, top=False, labelbottom=False)  # minor xticks
+            plt.tick_params(axis='x', which='major', bottom=True, top=False, labelbottom=True)  # minor xticks
+            plt.axhline(y=0, xmin=0, xmax=1, color='grey', linestyle='--')
+            plt.ylim([-4, 1])
+            plt.tight_layout()
+            fname = site + '_' + exp
+            fname_long = os.path.join('/data/leuven/324/vsc32460/FIG/in_situ_comparison/paper/timeseries_WTD/' + fname + '.png')
+            plt.savefig(fname_long, dpi=350)
+            plt.close()
+        else:
+            print('not sites for paper')
 
         #plot the anomalies
         if threeYears >= 1095:
@@ -1295,13 +1574,13 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, s
 
     df_allmetrics = df_metrics.join(df_metrics_P)
     df_allmetrics_new = df_allmetrics[df_allmetrics['R_P (-)'] > 0.28].dropna()
-    # df_all_biasP= (df_allmetrics_new['abs_bias_P (m)']-df_allmetrics_new['abs_bias_P (m)'].min())/(df_allmetrics_new['abs_bias_P (m)'].max()-df_allmetrics_new['abs_bias_P (m)'].min())
-    # df_all_RWTD= (df_allmetrics_new['Pearson_R (-)']-df_allmetrics_new['Pearson_R (-)'].min())/(df_allmetrics_new['Pearson_R (-)'].max()-df_allmetrics_new['Pearson_R (-)'].min())
+    df_all_biasP= ((df_allmetrics_new['bias_P (m)'])-df_allmetrics_new['bias_P (m)'].min())/(df_allmetrics_new['bias_P (m)'].max()-df_allmetrics_new['bias_P (m)'].min())
+    df_all_RWTD= (df_allmetrics_new['R (-)']-df_allmetrics_new['R (-)'].min())/(df_allmetrics_new['R (-)'].max()-df_allmetrics_new['R (-)'].min())
 
     df_all_RWTD = df_allmetrics_new['R (-)']
-    #df_all_biasP = pd.DataFrame(df_all_biasP)
+    df_all_biasP = pd.DataFrame(df_all_biasP)
     df_all_RWTD = pd.DataFrame(df_all_RWTD)
-    #df_allWTDP = df_all_biasP.join(df_all_RWTD)
+    df_allWTDP = df_all_biasP.join(df_all_RWTD)
 
     # Plot boxplot for metrics of WTD only
     plt.figure()
@@ -1321,33 +1600,35 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, s
     skillpath = '/data/leuven/324/vsc32460/FIG/'
     fname = 'skillmetrics_' + 'M09' + exp + '.csv'
     df_metrics.to_csv(skillpath + fname, index=True, header=True)
+    fname = 'skillmetrics_' + 'M09' + exp + '_CI.csv'
+    df_metrics_CI.to_csv(skillpath + fname, index=True, header=True)
 
     # comparison of abs bias P to WTD R
     if (exp == 'INDONESIA_M09_PEATCLSMTN_v01'):
         # linear regression for the data and correlation
-        xtest = pd.DataFrame(df_allWTDP['abs_bias_P (m)'])
-        ytest = pd.DataFrame(df_allWTDP['Pearson_R (-)'])
+        xtest = pd.DataFrame(df_allWTDP['bias_P (m)'])
+        ytest = pd.DataFrame(df_allWTDP['R (-)'])
         reg = linear_model.LinearRegression().fit(xtest, ytest)
         reg.fit(xtest, ytest)
         m = reg.coef_[0]
         b = reg.intercept_
         print("formula: y ={0}x+{1}".format(m, b))
         Pearson_2 = df_allWTDP.corr(method='pearson')
-        Pearson_2_value = Pearson_2.iloc[0]['Pearson_R (-)']
+        Pearson_2_value = Pearson_2.iloc[0]['R (-)']
         Pearson_2_value = Pearson_2_value.round(decimals=3)
         print(Pearson_2_value)
 
         plt.figure()
         fname = 'WTD_precip'
         fname_long = os.path.join(outpath + '/comparison_insitu_data/' + fname + '.png')
-        df_allWTDP.plot(fontsize=fontsize, x='abs_bias_P (m)', y='Pearson_R (-)', style=['.'], color='r', markersize=4,
+        df_allWTDP.plot(fontsize=fontsize, x='bias_P (m)', y='R (-)', style=['.'], color='r', markersize=4,
                         label='Pearson R')
         plt.plot([0, 4.2], [(b), (b + (m * (4.2)))], color='b')
         plt.ylabel('R (groundwater level)')
         plt.xlabel('Mean absolute precipitation error (cm)')
         plt.xlim(left=0, right=4)
         plt.legend(fontsize=fontsize)
-        Title = ("y ={0}x+{1}".format(m, b) + ' , Pearson R =' + str(Pearson_2_value))
+        Title = ("y ={0}x+{1}".format(m, b) + ' , R =' + str(Pearson_2_value))
         plt.title(Title)
         plt.savefig(fname_long, dpi=150)
         plt.close()
@@ -1355,9 +1636,9 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, s
         # boxplot for RWTD and ABSBP of good and bad
         df_allWTDP1 = df_allWTDP.copy()
         df_allWTDP1.insert(0, 'Group', ['B', 'B', 'B', 'B', 'A', 'B', 'B', 'A', 'A', 'A', 'A'], True)
-        df_allWTDP1 = df_allWTDP1.drop(['abs_bias_P (m)'], axis=1)
+        df_allWTDP1 = df_allWTDP1.drop(['bias_P (m)'], axis=1)
         plt.figure(figsize=(5.5, 5))
-        ax = sns.boxplot(x="Group", y="Pearson_R (-)", data=df_allWTDP1, palette=["#e74c3c", "#2ecc71"], width=0.7)
+        ax = sns.boxplot(x="Group", y="R (-)", data=df_allWTDP1, palette=["#e74c3c", "#2ecc71"], width=0.7)
         fname = 'grouped_boxplot1'
         fname_long = os.path.join(outpath + '/comparison_insitu_data/' + fname + '.png')
         # Title =('Comparing the influence of the absolute bias between modeled'+ '\n' + ' and observed precipitation on the correlation coefficient' + '\n' + ' of the modeled and observed water level'+ '\n')
@@ -1373,21 +1654,21 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, s
         plt.close()
 
         # grouped boxplot for RWTD and ABSBP of good and bad NORMALIZED
-        # df_all_biasP1= (df_allmetrics_new['abs_bias_P (m)']-df_allmetrics_new['abs_bias_P (m)'].min())/(df_allmetrics_new['abs_bias_P (m)'].max()-df_allmetrics_new['abs_bias_P (m)'].min())
-        # df_all_RWTD1= (df_allmetrics_new['Pearson_R (-)']-df_allmetrics_new['Pearson_R (-)'].min())/(df_allmetrics_new['Pearson_R (-)'].max()-df_allmetrics_new['Pearson_R (-)'].min())
-        # df_all_biasP1 = pd.DataFrame(df_all_biasP1)
-        # df_all_RWTD1 = pd.DataFrame(df_all_RWTD1)
-        # df_allWTDP1 = df_all_biasP1.join(df_all_RWTD1)
-        # df_allWTDP1.insert(0, 'Group', ['B', 'B', 'B', 'B', 'A', 'B', 'B', 'A', 'A', 'A', 'A'], True)
-        # plt.figure()
-        # df_long= pd.melt(df_allWTDP1, "Group")
-        # sns.boxplot(x="variable", y="value", data=df_long, hue="Group", palette=["#e74c3c", "#2ecc71"])
-        # fname = 'grouped_boxplot_normalized'
-        # fname_long = os.path.join(outpath + '/comparison_insitu_data/' + fname + '.png')
-        # Title ='Normalized Grouped boxplot'
-        # plt.title(Title, fontsize=9)
-        # plt.savefig(fname_long, dpi=150)
-        # plt.close()
+        df_all_biasP1= (df_allmetrics_new['abs_bias_P (m)']-df_allmetrics_new['abs_bias_P (m)'].min())/(df_allmetrics_new['abs_bias_P (m)'].max()-df_allmetrics_new['abs_bias_P (m)'].min())
+        df_all_RWTD1= (df_allmetrics_new['Pearson_R (-)']-df_allmetrics_new['Pearson_R (-)'].min())/(df_allmetrics_new['Pearson_R (-)'].max()-df_allmetrics_new['Pearson_R (-)'].min())
+        df_all_biasP1 = pd.DataFrame(df_all_biasP1)
+        df_all_RWTD1 = pd.DataFrame(df_all_RWTD1)
+        df_allWTDP1 = df_all_biasP1.join(df_all_RWTD1)
+        df_allWTDP1.insert(0, 'Group', ['B', 'B', 'B', 'B', 'A', 'B', 'B', 'A', 'A', 'A', 'A'], True)
+        plt.figure()
+        df_long= pd.melt(df_allWTDP1, "Group")
+        sns.boxplot(x="variable", y="value", data=df_long, hue="Group", palette=["#e74c3c", "#2ecc71"])
+        fname = 'grouped_boxplot_normalized'
+        fname_long = os.path.join(outpath + '/comparison_insitu_data/' + fname + '.png')
+        Title ='Normalized Grouped boxplot'
+        plt.title(Title, fontsize=9)
+        plt.savefig(fname_long, dpi=150)
+        plt.close()
 
     # sebastian added     # save skillmetrics in csvfile
     # path_changing = os.path.join(outpath + '/comparison_insitu_data/' + 'skillmetrics_parameters.csv')
@@ -1635,13 +1916,12 @@ def plot_peat_and_sites(exp, domain, root, outpath):
     LON = [15.0, 15.0, 22.0, 22.0]  # minlon, minlon, maxlon, maxlon OR bottom left, top left, top right, bottom right
     draw_screen_poly(LON, LAT, m)
     # IN
-    LAT = [-11, 7.5, 7.5, -11]  # minlat, maxlat, maxlat, minlat OR bottom left, top left, top right, bottom right
-    LON = [94.0, 94.0, 153.0, 153.0]  # minlon, minlon, maxlon, maxlon OR bottom left, top left, top right, bottom right
+    LAT = [-11.5, 7.5, 7.5, -11.5]  # minlat, maxlat, maxlat, minlat OR bottom left, top left, top right, bottom right
+    LON = [94.0, 94.0, 155.0, 155.0]  # minlon, minlon, maxlon, maxlon OR bottom left, top left, top right, bottom right
     draw_screen_poly(LON, LAT, m)
     # SA
     LAT = [-8.0, 13.0, 13.0, -8.0]  # minlat, maxlat, maxlat, minlat OR bottom left, top left, top right, bottom right
-    LON = [-87.0, -87.0, -45.0,
-           -45.0]  # minlon, minlon, maxlon, maxlon OR bottom left, top left, top right, bottom right
+    LON = [-87.0, -87.0, -45.0, -45.0]  # minlon, minlon, maxlon, maxlon OR bottom left, top left, top right, bottom right
     draw_screen_poly(LON, LAT, m)
 
     im = m.pcolormesh(lons, lats, plt_img, cmap=cmap, latlon=True)
@@ -1714,7 +1994,7 @@ def plot_peat_and_sites(exp, domain, root, outpath):
             m.drawmeridians(meridians, linewidth=1.8, labels=[False, False, False, True], color='grey',
                             fontsize=132)
 
-        # load in situ coordinates
+        # load in situ coordinates of WTD
         insitu_path = '/data/leuven/317/vsc31786/peatland_data/tropics/WTD'
         mastertable_filename = 'WTD_TROPICS_MASTER_TABLE_ALLDorN.csv'
         filenames = find_files(insitu_path, mastertable_filename)
@@ -1737,14 +2017,35 @@ def plot_peat_and_sites(exp, domain, root, outpath):
         master_table_IN_D = master_table_IN[master_table_IN['drained_U=uncertain'] == 'D']
         master_table_IN_N = master_table_IN[master_table_IN['drained_U=uncertain'] == 'N']
 
+        insitu_path = '/data/leuven/317/vsc31786/peatland_data/tropics/ET'
+        mastertable_filename = 'ET_TROPICS_MASTER_TABLE.csv'
+        filenames = find_files(insitu_path, mastertable_filename)
+        if isinstance(find_files(insitu_path, mastertable_filename), str):
+            master_table_ET = pd.read_csv(filenames, sep=';')
+        else:
+            for filename in filenames:
+                if filename.endswith('csv'):
+                    master_table_ET = pd.read_csv(filename, sep=';')
+                    cond = master_table_ET['comparison_yes'] == 1
+                    continue
+                else:
+                    logging.warning("some files, maybe swp files, exist that start with master table searchstring !")
+
+        # plot in situ coordinates
+        master_table_N_ET = master_table_ET[master_table_ET['comparison_yes'] == 1]
+        master_table_SA_ET = master_table_N_ET[master_table_N_ET['lon'] < -20]
+        master_table_IN_ET = master_table_N_ET[master_table_N_ET['lon'] >= 60]
+
         #x, y = m(master_table['lon'].values[cond], master_table['lat'].values[cond])
         if exp[:2] == 'IN':
-            m.plot(master_table_IN_D['lon'], master_table_IN_D['lat'], 'o', markerfacecolor='magenta', markersize=fontsize + 3, markeredgecolor = 'k', markeredgewidth = .1)
-            m.plot(master_table_IN_N['lon'], master_table_IN_N['lat'], 'o', markerfacecolor='limegreen', markeredgecolor='k', markersize=fontsize +3 , markeredgewidth=1.2)
+            m.plot(master_table_IN_D['lon'], master_table_IN_D['lat'], 'o', markerfacecolor='magenta', markersize=fontsize + 4, markeredgecolor = 'k', markeredgewidth =1.2)
+            m.plot(master_table_IN_N['lon'], master_table_IN_N['lat'], 'o', markerfacecolor='limegreen', markeredgecolor='k', markersize=fontsize + 4 , markeredgewidth=1.2)
+            m.plot(master_table_IN_ET['lon'], master_table_IN_ET['lat'], 'o', markerfacecolor='None', markeredgecolor='b', markersize=fontsize + 6.5 , markeredgewidth=3.5)
         elif exp[:2] == 'SA':
-            m.plot(master_table_SA['lon'], master_table_SA['lat'], 'o', markerfacecolor='limegreen', markeredgecolor='k', markersize=fontsize + 12, markeredgewidth=1.2)
+            m.plot(master_table_SA['lon'], master_table_SA['lat'], 'o', markerfacecolor='limegreen', markeredgecolor='k', markersize=fontsize + 14, markeredgewidth=1.8)
+            m.plot(master_table_SA_ET['lon'], master_table_SA_ET['lat'], 'o', markerfacecolor='None', markeredgecolor='b', markersize=fontsize + 19, markeredgewidth=8)
         else:
-            m.plot(master_table_CO['lon'], master_table_CO['lat'], 'o', markerfacecolor='limegreen', markersize=fontsize + 22)
+            m.plot(master_table_CO['lon'], master_table_CO['lat'], 'o', markerfacecolor='limegreen', markersize=fontsize + 26)
         im = m.pcolormesh(lons, lats, plt_img, cmap=cmap, latlon=True)
 
         # save the figure
@@ -1767,8 +2068,8 @@ def plot_peat_and_sites(exp, domain, root, outpath):
     root = '/staging/leuven/stg_00024/OUTPUT/sebastiana'
     exp = 'INDONESIA_M09_PEATCLSMTN_v01'
     # to plot new, smaller views, else comment out
-    LAT = [-11, 7.5, 7.5, -11]  # minlat, maxlat, maxlat, minlat OR bottom left, top left, top right, bottom right
-    LON = [94.0, 94.0, 153.0, 153.0]  # minlon, minlon, maxlon, maxlon OR bottom left, top left, top right, bottom right
+    LAT = [-11.5, 7.5, 7.5, -11.5]  # minlat, maxlat, maxlat, minlat OR bottom left, top left, top right, bottom right
+    LON = [94.0, 94.0, 155.0, 155.0]  # minlon, minlon, maxlon, maxlon OR bottom left, top left, top right, bottom right
     zoom_ins(exp, domain, root, outpath)
 
     # SA
@@ -4486,14 +4787,14 @@ def figure_zoom(data, lons, lats, latmin, latmax, lonmin, lonmax):
 
 
 def figure_single_default(data, lons, lats, cmin, cmax, llcrnrlat, urcrnrlat,
-                          llcrnrlon, urcrnrlon, outpath, exp, fname, plot_title, cmap='seismic'):
+                          llcrnrlon, urcrnrlon, outpath, exp, fname, plot_title, cmap='coolwarm_r'):
     # if plot_title.startswith('zbar'):
     #    cmap = 'jet_r'
     if cmin == None:
         cmin = np.nanmin(data)
     if cmax == None:
         cmax = np.nanmax(data)
-    if cmin < 0.0 and cmap == 'seismic':
+    if cmin < -3.0 and cmap == 'seismic':
         cmax = np.max([-cmin, cmax])
         cmin = -cmax
     # open figure
@@ -4512,14 +4813,14 @@ def figure_single_default(data, lons, lats, cmin, cmax, llcrnrlat, urcrnrlat,
     fontsize = 14
     cbrange = (cmin, cmax)
 
-    f = plt.figure(num=None, figsize=figsize, dpi=90, facecolor='w', edgecolor='k')
+    f = plt.figure(num=None, figsize=figsize, dpi=450, facecolor='w', edgecolor='k')
     plt_img = np.ma.masked_invalid(data)
     m = Basemap(projection='mill', llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat, llcrnrlon=llcrnrlon, urcrnrlon=urcrnrlon,
                 resolution='l')
     m.drawcoastlines()
     m.drawcountries()
-    m.drawparallels(parallels, labels=[False, True, True, False])
-    m.drawmeridians(meridians, labels=[True, False, False, True])
+    m.drawparallels(parallels, labels=[False, False, False, False])
+    m.drawmeridians(meridians, labels=[False, False, False, False])
     # color bar
     im = m.pcolormesh(lons, lats, plt_img, cmap=cmap, latlon=True)
     im.set_clim(vmin=cbrange[0], vmax=cbrange[1])
@@ -4528,13 +4829,13 @@ def figure_single_default(data, lons, lats, cmin, cmax, llcrnrlat, urcrnrlat,
     # x,y = m(lon, lat)
     # m.plot(x, y, 'ko', markersize=6,mfc='none')
     # cmap = plt.get_cmap(cmap)
-    cb = m.colorbar(im, "bottom", size="6%", pad="22%", shrink=0.5)
+    cb = m.colorbar(im, "right", size="7%", pad="4%", shrink=0.5)
     # label size
     for t in cb.ax.get_xticklabels():
-        t.set_fontsize(fontsize)
+        t.set_fontsize(fontsize+10)
     for t in cb.ax.get_yticklabels():
-        t.set_fontsize(fontsize)
-    plt.title(plot_title, fontsize=fontsize)
+        t.set_fontsize(fontsize+10)
+    plt.title(plot_title, fontsize=fontsize+6)
     # plt.tight_layout()
     fname_long = os.path.join(outpath, fname + '.png')
     plt.savefig(fname_long, dpi=f.dpi)

@@ -1030,6 +1030,8 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
             no_overlap = pd.isnull(df_check).any(axis=1)
             if False in no_overlap.values:
                 first_site = False
+            # to end firs_site
+            first_site = False
 
         else:
             # Load in situ data.
@@ -2208,7 +2210,7 @@ def filter_diagnostics_evaluation_compare(exp1, exp2, domain, root, outputpath):
 
     ds.close()
 
-def estimate_tau(df, n_lags=180):
+def estimate_tau(df, n_lags=60):
     """ Estimate characteristic time lengths for pd.DataFrame columns """
 
     # df must be already daily
