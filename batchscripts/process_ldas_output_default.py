@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+param='daily'
 # batch script to convert ldas binary files to netcdf files
 # and other processed output files
 #
@@ -9,9 +10,10 @@
 # proc_incr: converts increments binary files to netcdf files
 # proc_tau_and_lag1_autocor (experimental) --> for autocorrelation in time series
 proc_daily = 1
-proc_ObsFcstAna = 0
+proc_ObsFcstAna = 1
 proc_incr = 0
 proc_tau_and_lag1_autocor = 0
+proc_daily_stats = 1
 #### constrain processing time period and domain (by default experimental domain and time period of binary files)
 date_from=None
 date_to=None
@@ -34,10 +36,11 @@ from shutil import move
 ##########################################
 
 def main(argv):
-    root='/scratch/leuven/317/vsc31786/output/00TEST/'
-    exp='CONGO_M09_PEATCLSMTN_v01_ERROR'
+    root='/staging/leuven/stg_00024/OUTPUT/sebastiana/'
+    exp='CONGO_M09_PEATCLSMTN_v01'
     domain='SMAP_EASEv2_M09'
     #vscgroup = os.getenv("HOME").split("/")[3]
+
     #vscname = os.getenv("HOME").split("/")[4]
     try:
         opts, args = getopt.getopt(argv,"hr:e:d:",["root=","experiment=","domain="])
@@ -107,6 +110,13 @@ def main(argv):
 
     if proc_tau_and_lag1_autocor==1:
         calc_tau_and_lag1_autocor(io)
+
+    if proc_daily_stats==1:
+        io = LDAS_io(param, exp, domain, root)
+        outputpath = io.paths.root +'/' + exp + '/output_postprocessed/'
+        os.makedirs(outputpath,exist_ok=True)
+        daily_stats(exp, domain, root, outputpath,'std',param=param)
+        daily_stats(exp, domain, root, outputpath,'mean',param=param)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
