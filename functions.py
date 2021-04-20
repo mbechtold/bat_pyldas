@@ -71,10 +71,14 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
     filenames = find_files(insitu_path, mastertable_filename)
     if isinstance(find_files(insitu_path, mastertable_filename),str):
         master_table = pd.read_csv(filenames, sep =';')
+        if master_table.shape[1]==1:
+            master_table = pd.read_csv(filenames, sep =',')
     else:
         for filename in filenames:
             if filename.endswith('csv'):
                 master_table = pd.read_csv(filename, sep =';')
+                if master_table.shape[1]==1:
+                    master_table = pd.read_csv(filenames, sep =',')
                 continue
             else:
                 logging.warning("some files, maybe swp files, exist that start with master table searchstring !")
@@ -95,9 +99,12 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
             continue
 
  #sebastian added       #to select only the drained of only the natural ones to calculate skill metrics!
-        if master_table['drained_U=uncertain'][i] == 'D':
-            continue
-
+        # step over if not presented (current northern evaluation)
+        try:
+            if master_table['drained_U=uncertain'][i] == 'D':
+                continue
+        except:
+            pass
         #if master_table['drained_U=uncertain'][i] == 'U':
         #    continue
 
@@ -135,7 +142,8 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
             else:
                 flist = find_files(insitu_path, site_ID)
                 for f in flist:
-                    if f.count('aily')>=1:
+                    # 000_all_wtd added for northern peatlands, data management to be harmonized
+                    if ((f.count('aily')>=1) or (f.count('000_all_wtd/')>=1)) and f.endswith('csv'):
                         filename_wtd = f
         except:
             print(site_ID + " does not have a WTD csv file with data.")
@@ -185,7 +193,7 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
                 precip_obs = precip_obs.set_index('time')
             except:
                 precip_obs = wtd_obs.copy()
-                precip_obs[site_ID]=-10
+                precip_obs[:]=-9999
 
             # Load model wtd data.
             wtd_mod = io.read_ts('zbar', lon, lat, lonlat=True)
@@ -202,7 +210,7 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
                 precip_mod = io2.read_ts('Rainf', lon, lat, lonlat=True)
             except:
                 precip_mod = wtd_mod.copy()
-                precip_mod[site_ID]=-15
+                precip_mod[:]=-9999
 
             # Check if overlapping data.
             df_check = pd.concat((precip_obs,precip_mod), axis=1)
@@ -214,12 +222,28 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
             # Load in situ data.
             # wtd:
             print("reading ... "+filename_wtd)
-            wtd_obs_tmp = pd.read_csv(filename_wtd)
+            wtd_obs_tmp = pd.read_csv(filename_wtd,sep=',')
             if wtd_obs_tmp.shape[1]==1:
                 print("WTD csv file with semicolon ...")
                 wtd_obs_tmp = pd.read_csv(filename_wtd,sep=';')
             wtd_obs_tmp.columns = ['time', site_ID]
-            wtd_obs_tmp['time'] = pd.to_datetime(wtd_obs_tmp['time'])
+            # MB: pandas failed to recognice datetime pattern automatically ..
+            if wtd_obs_tmp.loc[0,'time'].__len__()<=11:
+                if wtd_obs_tmp.loc[0,'time'].split('/')[0].__len__()<=2:
+                    # Year in the end
+                    try:
+                        wtd_obs_tmp['time'] = pd.to_datetime(wtd_obs_tmp['time'], format='%d/%m/%Y')
+                    except:
+                        wtd_obs_tmp['time'] = pd.to_datetime(wtd_obs_tmp['time'], format='%m/%d/%Y')
+                else:
+                    wtd_obs_tmp['time'] = pd.to_datetime(wtd_obs_tmp['time'])
+            else:
+                if wtd_obs_tmp.loc[0,'time'].split('/')[0].__len__()<=2:
+                    # Year in the end
+                    wtd_obs_tmp['time'] = pd.to_datetime(wtd_obs_tmp['time'], format='%d/%m/%Y %H:%M')
+                else:
+                    wtd_obs_tmp['time'] = pd.to_datetime(wtd_obs_tmp['time'])
+
             wtd_obs_tmp = wtd_obs_tmp.set_index('time')
             try:
                 # Precipitation:
@@ -229,7 +253,7 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
                 precip_obs_tmp = precip_obs_tmp.set_index('time')
             except:
                 precip_obs_tmp = wtd_obs_tmp.copy()
-                precip_obs_tmp[site_ID]=-10
+                precip_obs_tmp[:]=-9999
 
             #temporarly added this to go around an error
             #precip_obs_tmp[site_ID] = -1
@@ -241,6 +265,7 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
             # Check if overlaping data.
             #if site_ID.startswith('Taka1_Palangkraya_da'):
             #    print('s')
+            print(site_ID)
             df_check_wtd = pd.concat((wtd_obs_tmp,wtd_mod_tmp), axis=1)
             no_overlap_wtd = pd.isnull(df_check_wtd).any(axis=1)
 
@@ -250,7 +275,7 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
                 precip_mod_tmp = io2.read_ts('Rainf', lon, lat, lonlat=True)
             except:
                 precip_mod_tmp = wtd_mod_tmp.copy()
-                precip_mod_tmp[site_ID] = -15
+                precip_mod_tmp[:] = -9999
             # Check if overlapping data.
             #df_check = pd.concat((precip_obs_tmp, precip_mod_tmp), axis=1)
             df_check = pd.concat((precip_obs_tmp.loc[~precip_obs_tmp.index.duplicated(keep='first')],precip_mod_tmp), axis=1)
@@ -298,7 +323,7 @@ def ncfile_init(fname, lats, lons, species, tags):
         ds.variables[dim][:] = dimval
 
     for tag in tags:
-        if (tag.find('innov') != -1) | (tag.find('obsvar') != -1) | (tag.find('fcstvar') != -1):
+        if (tag.find('innov') != -1) | (tag.find('obsvar') != -1) | (tag.find('fcstvar') != -1) | (tag.find('R_mean') != -1) | (tag.find('obs_mean') != -1):
             ds.createVariable(tag, 'float32', dimensions=dims, chunksizes=chunksizes, fill_value=-9999., zlib=True)
         else:
             ds.createVariable(tag, 'float32', dimensions=dims[1:], chunksizes=chunksizes[1:], fill_value=-9999., zlib=True)
@@ -521,7 +546,11 @@ def filter_diagnostics_evaluation(exp, domain, root, outputpath):
     #        #DA_innov.timeseries[cvar].values[:,0,:,:][cond0] = DA_innov.timeseries[cvar].where(cond1)
 
     #del cond1
-    DA_incr = LDAS_io('incr',exp, domain, root)
+    try:
+        DA_incr = LDAS_io('incr',exp, domain, root)
+        DA = 1
+    except:
+        DA = 0
     
     # get poros grid and bf1 and bf2 parameters
     io = LDAS_io('daily',exp, domain, root)
@@ -533,15 +562,29 @@ def filter_diagnostics_evaluation(exp, domain, root, outputpath):
     bf1[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['bf1'].values
     bf2 = np.full(lons.shape, np.nan)
     bf2[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['bf2'].values
+    ars1 = np.full(lons.shape, np.nan)
+    ars1[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['ars1'].values
+    ars2 = np.full(lons.shape, np.nan)
+    ars2[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['ars2'].values
+    ars3 = np.full(lons.shape, np.nan)
+    ars3[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['ars3'].values
 
-    tags = ['innov_mean','innov_var',
+    if DA==1:
+        tags = ['innov_mean','innov_var',
             'norm_innov_mean','norm_innov_var',
+            'obs_mean',
             'obsvar_mean','fcstvar_mean',
             'n_valid_innov',
             'incr_catdef_mean','incr_catdef_var',
             'incr_rzexc_mean','incr_rzexc_var',
             'incr_srfexc_mean','incr_srfexc_var',
             'n_valid_incr']
+    else:
+        tags = ['innov_mean','innov_var',
+                'norm_innov_mean','norm_innov_var',
+                'obs_mean',
+                'obsvar_mean','fcstvar_mean',
+                'n_valid_innov']
 
     tc = DA_innov.grid.tilecoord
     tg = DA_innov.grid.tilegrids
@@ -554,16 +597,18 @@ def filter_diagnostics_evaluation(exp, domain, root, outputpath):
 
     ds = ncfile_init(result_file, lats, lons, species, tags)
 
-    tmp = DA_incr.timeseries['srfexc'][:,:,:].values
-    np.place(tmp, tmp==0., np.nan)
-    np.place(tmp, ~np.isnan(tmp), 1.)
-    np.place(tmp, np.isnan(tmp), 0.)
-    ds['n_valid_incr'][:, :] = tmp.sum(axis=0)
+    if DA==1:
+        tmp = DA_incr.timeseries['srfexc'][:,:,:].values
+        np.place(tmp, tmp==0., np.nan)
+        np.place(tmp, ~np.isnan(tmp), 1.)
+        np.place(tmp, np.isnan(tmp), 0.)
+        ds['n_valid_incr'][:, :] = tmp.sum(axis=0)
 
     mask_scaling_old = 0
     if mask_scaling_old == 1:
         mask_innov = np.full_like(DA_innov.timeseries['obs_obs'][:,0,:,:].values, False)
-        mask_incr = np.full_like(DA_incr.timeseries['catdef'][:,:,:].values, False)
+        if DA==1:
+            mask_incr = np.full_like(DA_incr.timeseries['catdef'][:,:,:].values, False)
         n_innov_nyr = np.zeros([DA_innov.timeseries.dims['lat'],DA_innov.timeseries.dims['lon']])
         for j,yr in enumerate(np.unique(pd.Series(DA_innov.timeseries['time']).dt.year)):
             n_innov_yr = np.zeros([DA_innov.timeseries.dims['lat'],DA_innov.timeseries.dims['lon']])
@@ -585,24 +630,45 @@ def filter_diagnostics_evaluation(exp, domain, root, outputpath):
             n_innov_nyr[n_innov_yr>=3] = n_innov_nyr[n_innov_yr>=3] + 1
             cmask = np.repeat(cond[np.newaxis, :, :], np.where((pd.Series(DA_innov.timeseries['time']).dt.year==yr))[0].__len__(), axis=0)
             mask_innov[pd.Series(DA_innov.timeseries['time']).dt.year==yr,:,:] = cmask
-            cmask = np.repeat(cond[np.newaxis, :, :], np.where((pd.Series(DA_incr.timeseries['time']).dt.year==yr))[0].__len__(), axis=0)
-            mask_incr[pd.Series(DA_incr.timeseries['time']).dt.year==yr,:,:] = cmask
+            if DA==1:
+                cmask = np.repeat(cond[np.newaxis, :, :], np.where((pd.Series(DA_incr.timeseries['time']).dt.year==yr))[0].__len__(), axis=0)
+                mask_incr[pd.Series(DA_incr.timeseries['time']).dt.year==yr,:,:] = cmask
         del cmask,n_innov_yr,cond,tmp,obs_obs_tmp
         cond2 = n_innov_nyr <= 1
         cmask = np.repeat(cond2[np.newaxis, :, :], np.where((pd.Series(DA_innov.timeseries['time']).dt.year!=-9999))[0].__len__(), axis=0)
         np.place(mask_innov, cmask, True)
-        cmask = np.repeat(cond2[np.newaxis, :, :], np.where((pd.Series(DA_incr.timeseries['time']).dt.year!=-9999))[0].__len__(), axis=0)
-        np.place(mask_incr, cmask, True)
+        if DA==1:
+            cmask = np.repeat(cond2[np.newaxis, :, :], np.where((pd.Series(DA_incr.timeseries['time']).dt.year!=-9999))[0].__len__(), axis=0)
+            np.place(mask_incr, cmask, True)
+
+    #DA_innov2 = LDAS_io('ObsFcstAna',exp+'_DA', domain, root)
+    #if DA==0:
+    #    OL_mask = np.in1d(DA_innov.timeseries['time'].values, DA_innov2.timeseries['time'].values)
+    #    DA_mask = np.in1d(DA_innov2.timeseries['time'].values, DA_innov.timeseries['time'].values)
 
     for i_spc,spc in enumerate(species):
         logging.info('species %i' % (i_spc))
         tmp = DA_innov.timeseries['obs_obs'][:,i_spc,:,:].values
         #np.place(tmp,DA_innov.timeseries['obs_assim'][:,i_spc,:,:]!=-1,np.nan)
-        tmp = np.where(DA_innov.timeseries['obs_assim'][:,i_spc,:,:]!=-1,np.nan,tmp)
+        #if DA==0:
+        #    # take valid data mask from what has been assimilated in the _DA run
+        #    tmp = np.where(DA_innov2.timeseries['obs_assim'][DA_mask,i_spc,:,:]!=-1,np.nan,tmp)
+        #else:
+        if DA==1:
+            tmp = np.where(DA_innov.timeseries['obs_assim'][:,i_spc,:,:]!=-1,np.nan,tmp)
         if mask_scaling_old == 1:
             np.place(tmp, mask_innov,np.nan)
+        ds['obs_mean'][i_spc,:,:] = (DA_innov.timeseries['obs_obs'][:,i_spc,:,:]).mean(dim='time',skipna=True).values
         ds['obsvar_mean'][i_spc,:,:] = (DA_innov.timeseries['obs_obsvar'][:,i_spc,:,:]).mean(dim='time',skipna=True).values
         ds['fcstvar_mean'][i_spc,:,:] = (DA_innov.timeseries['obs_fcstvar'][:,i_spc,:,:]).mean(dim='time',skipna=True).values
+        #if DA==0:
+        #    ds['innov_mean'][i_spc,:,:] = (tmp - DA_innov.timeseries['obs_fcst'][OL_mask,i_spc,:,:]).mean(dim='time',skipna=True).values
+        #    ds['innov_var'][i_spc,:,:] = (tmp - DA_innov.timeseries['obs_fcst'][OL_mask,i_spc,:,:]).var(dim='time',skipna=True).values
+        #    ds['norm_innov_mean'][i_spc,:,:] = ((tmp - DA_innov.timeseries['obs_fcst'][OL_mask,i_spc,:,:]) /
+        #                                        np.sqrt(DA_innov.timeseries['obs_obsvar'][OL_mask,i_spc,:,:] + DA_innov.timeseries['obs_fcstvar'][OL_mask,i_spc,:,:])).mean(dim='time',skipna=True).values
+        #    ds['norm_innov_var'][i_spc,:,:] = ((tmp - DA_innov.timeseries['obs_fcst'][OL_mask,i_spc,:,:]) /
+        #                                       np.sqrt(DA_innov.timeseries['obs_obsvar'][OL_mask,i_spc,:,:] + DA_innov.timeseries['obs_fcstvar'][OL_mask,i_spc,:,:])).var(dim='time',skipna=True).values
+        #else:
         ds['innov_mean'][i_spc,:,:] = (tmp - DA_innov.timeseries['obs_fcst'][:,i_spc,:,:]).mean(dim='time',skipna=True).values
         ds['innov_var'][i_spc,:,:] = (tmp - DA_innov.timeseries['obs_fcst'][:,i_spc,:,:]).var(dim='time',skipna=True).values
         ds['norm_innov_mean'][i_spc,:,:] = ((tmp - DA_innov.timeseries['obs_fcst'][:,i_spc,:,:]) /
@@ -619,64 +685,192 @@ def filter_diagnostics_evaluation(exp, domain, root, outputpath):
 
     if mask_scaling_old == 1:
         del mask_innov
-    np.place(DA_incr.timeseries['catdef'].values, DA_incr.timeseries['catdef'].values == 0, np.nan)
-    np.place(DA_incr.timeseries['rzexc'].values, DA_incr.timeseries['rzexc'].values == 0, np.nan)
-    np.place(DA_incr.timeseries['srfexc'].values, DA_incr.timeseries['srfexc'].values == 0, np.nan)
-    if mask_scaling_old == 1:
-        np.place(DA_incr.timeseries['catdef'].values, mask_incr, np.nan)
-        np.place(DA_incr.timeseries['rzexc'].values, mask_incr, np.nan)
-        np.place(DA_incr.timeseries['srfexc'].values, mask_incr, np.nan)
-    # map from daily to hourly
-    #cmap = np.floor(np.linspace(0,io.timeseries['time'].size,incr.size+1))
-    ds['incr_catdef_mean'][:, :] = DA_incr.timeseries['catdef'].mean(dim='time',skipna=True).values
-    ds['incr_catdef_var'][:, :] = DA_incr.timeseries['catdef'].var(dim='time',skipna=True).values
-    ndays = io.timeseries['time'].size
-    n3hourly = DA_incr.timeseries['time'].size
-    # overwrite if exp does not contain CLSM
-    if exp.find("_CLSM")<0:
-        for row in range(DA_incr.timeseries['catdef'].shape[1]):
-            logging.info('PCLSM row %i' % (row))
-            for col in range(DA_incr.timeseries['catdef'].shape[2]):
-                if poros[row,col]>0.6:
-                    catdef1 = pd.DataFrame(index=io.timeseries['time'].values + pd.Timedelta('12 hours'), data=io.timeseries['catdef'][:,row,col].values)
-                    catdef1 = catdef1.resample('3H').max().interpolate()
-                    ar1 = pd.DataFrame(index=io.timeseries['time'].values + pd.Timedelta('12 hours'), data=io.timeseries['ar1'][:,row,col].values)
-                    ar1 = ar1.resample('3H').max().interpolate()
-                    incr = pd.DataFrame(index=DA_incr.timeseries['time'].values, data=DA_incr.timeseries['catdef'][:,row,col].values)
-                    #incr = DA_incr.timeseries['catdef'][:,row,col]
-                    df = pd.concat((catdef1,incr,ar1),axis=1)
-                    df.columns = ['catdef1','incr','ar1']
-                    catdef2 = df['catdef1']+df['incr']
-                    catdef1 = df['catdef1']
-                    ar1 = df['ar1']
-                    incr = df['incr']
-                    zbar1 = -1.0*(np.sqrt(0.000001+catdef1/bf1[row,col])-bf2[row,col])
-                    zbar2 = -1.0*(np.sqrt(0.000001+catdef2/bf1[row,col])-bf2[row,col])
-                    incr_ar1 = -(zbar2-zbar1)*1000*ar1   # incr surface water storage but expressed as deficit change, so '-'
-                    #data2 = pd.DataFrame(index=DA_incr.timeseries['time'].values, data=DA_incr.timeseries['catdef'][:,0,0].values)
-                    #cdata = pd.concat(data1,data2)
-                    #zbar = -1.0*(np.sqrt(0.000001+catdef/bf1[row,col])-bf2[row,col])
-                    #incr = DA_incr.timeseries['catdef'][:,row,col]
-                    #catdef = np.full_like(incr,np.nan)
-                    #for i in range(n3hourly):
-                    #    catdef1 = io.timeseries['catdef'][int(np.floor(i/8.0)),row,col]
-                    #    catdef2 = io.timeseries['catdef'][int(np.floor(i/8.0)),row,col] + incr[i].item()
-                    #    zbar1 = -1.0*(np.sqrt(0.000001+catdef1/bf1[row,col])-bf2[row,col])
-                    #    zbar2 = -1.0*(np.sqrt(0.000001+catdef2/bf1[row,col])-bf2[row,col])
-                    #    if np.isnan(zbar1-zbar2)==False:
-                    #        res, err = quad(normal_distribution_function, zbar1, zbar2)
-                    #        catdef[i] = incr[i].item() + res
-                    #    else:
-                    #        catdef[i] = 0.0
-                    incr_total = incr_ar1 + incr
-                    ds['incr_catdef_mean'][row, col] = incr_total.mean(skipna=True)
-                    ds['incr_catdef_var'][row, col] = incr_total.var(skipna=True)
-    ds['incr_rzexc_mean'][:, :] = DA_incr.timeseries['rzexc'].mean(dim='time',skipna=True).values
-    ds['incr_rzexc_var'][:, :] = DA_incr.timeseries['rzexc'].var(dim='time',skipna=True).values
-    ds['incr_srfexc_mean'][:, :] = DA_incr.timeseries['srfexc'].mean(dim='time',skipna=True).values
-    ds['incr_srfexc_var'][:, :] = DA_incr.timeseries['srfexc'].var(dim='time',skipna=True).values
+    if DA==1:
+        np.place(DA_incr.timeseries['catdef'].values, DA_incr.timeseries['catdef'].values == 0, np.nan)
+        np.place(DA_incr.timeseries['rzexc'].values, DA_incr.timeseries['rzexc'].values == 0, np.nan)
+        np.place(DA_incr.timeseries['srfexc'].values, DA_incr.timeseries['srfexc'].values == 0, np.nan)
+        if mask_scaling_old == 1:
+            np.place(DA_incr.timeseries['catdef'].values, mask_incr, np.nan)
+            np.place(DA_incr.timeseries['rzexc'].values, mask_incr, np.nan)
+            np.place(DA_incr.timeseries['srfexc'].values, mask_incr, np.nan)
+        # map from daily to hourly
+        #cmap = np.floor(np.linspace(0,io.timeseries['time'].size,incr.size+1))
+        ds['incr_catdef_mean'][:, :] = DA_incr.timeseries['catdef'].mean(dim='time',skipna=True).values
+        ds['incr_catdef_var'][:, :] = DA_incr.timeseries['catdef'].var(dim='time',skipna=True).values
+        ndays = io.timeseries['time'].size
+        n3hourly = DA_incr.timeseries['time'].size
+        # overwrite if exp does not contain CLSM
+        if exp.find("_CLSM")<0:
+            for row in range(DA_incr.timeseries['catdef'].shape[1]):
+                logging.info('PCLSM row %i' % (row))
+                for col in range(DA_incr.timeseries['catdef'].shape[2]):
+                    if poros[row,col]>0.6:
+                        catdef1 = pd.DataFrame(index=io.timeseries['time'].values + pd.Timedelta('12 hours'), data=io.timeseries['catdef'][:,row,col].values)
+                        catdef1 = catdef1.resample('3H').max().interpolate()
+                        ar1 = pd.DataFrame(index=io.timeseries['time'].values + pd.Timedelta('12 hours'), data=io.timeseries['ar1'][:,row,col].values)
+                        ar1 = ar1.resample('3H').max().interpolate()
+                        incr = pd.DataFrame(index=DA_incr.timeseries['time'].values, data=DA_incr.timeseries['catdef'][:,row,col].values)
+                        #incr = DA_incr.timeseries['catdef'][:,row,col]
+                        df = pd.concat((catdef1,incr,ar1),axis=1)
+                        df.columns = ['catdef1','incr','ar1']
+                        catdef0 = df['catdef1'] - df['incr']
+                        catdef1 = df['catdef1']
+                        ar1 = df['ar1']
+                        incr = df['incr']
+                        zbar1 = -1.0*(np.sqrt(0.000001+catdef1/bf1[row,col])-bf2[row,col])
+                        zbar0 = -1.0*(np.sqrt(0.000001+catdef0/bf1[row,col])-bf2[row,col])
+                        ar0 = (1.0 + ars1[row,col]*catdef0)/(1.0+ars2[row,col]*catdef0+ars3[row,col]*catdef0**2.0)
+                        incr_ar1 = -(zbar1-zbar0)*1000*(0.5*(ar0+ar1))   # incr surface water storage but expressed as deficit change, so '-'
+                        #data2 = pd.DataFrame(index=DA_incr.timeseries['time'].values, data=DA_incr.timeseries['catdef'][:,0,0].values)
+                        #cdata = pd.concat(data1,data2)
+                        #zbar = -1.0*(np.sqrt(0.000001+catdef/bf1[row,col])-bf2[row,col])
+                        #incr = DA_incr.timeseries['catdef'][:,row,col]
+                        #catdef = np.full_like(incr,np.nan)
+                        #for i in range(n3hourly):
+                        #    catdef1 = io.timeseries['catdef'][int(np.floor(i/8.0)),row,col]
+                        #    catdef2 = io.timeseries['catdef'][int(np.floor(i/8.0)),row,col] + incr[i].item()
+                        #    zbar1 = -1.0*(np.sqrt(0.000001+catdef1/bf1[row,col])-bf2[row,col])
+                        #    zbar2 = -1.0*(np.sqrt(0.000001+catdef2/bf1[row,col])-bf2[row,col])
+                        #    if np.isnan(zbar1-zbar2)==False:
+                        #        res, err = quad(normal_distribution_function, zbar1, zbar2)
+                        #        catdef[i] = incr[i].item() + res
+                        #    else:
+                        #        catdef[i] = 0.0
+                        incr_total = incr_ar1 + incr
+                        ds['incr_catdef_mean'][row, col] = incr_total.mean(skipna=True)
+                        ds['incr_catdef_var'][row, col] = incr_total.var(skipna=True)
+        ds['incr_rzexc_mean'][:, :] = DA_incr.timeseries['rzexc'].mean(dim='time',skipna=True).values
+        ds['incr_rzexc_var'][:, :] = DA_incr.timeseries['rzexc'].var(dim='time',skipna=True).values
+        ds['incr_srfexc_mean'][:, :] = DA_incr.timeseries['srfexc'].mean(dim='time',skipna=True).values
+        ds['incr_srfexc_var'][:, :] = DA_incr.timeseries['srfexc'].var(dim='time',skipna=True).values
 
     ds.close()
+
+def filter_diagnostics_evaluation_OL_with_rescaled_obs(exp, domain, root, outputpath):
+
+    if not os.path.exists(outputpath):
+        os.makedirs(outputpath,exist_ok=True)
+    result_file = outputpath + 'filter_diagnostics_OL_with_rescaled_obs.nc'
+    os.remove(result_file) if os.path.exists(result_file) else None
+
+    DA_innov = LDAS_io('ObsFcstAna',exp, domain, root)
+    #cvars = DA_innov.timeseries.data_vars
+    #cond = DA_innov.timeseries['obs_assim']==-1
+    #tmp = DA_innov.timeseries['obs_assim'][:,:,:,:].values
+    #np.place(tmp, np.isnan(tmp), 1.)
+    #np.place(tmp, tmp==False, 0.)
+    #np.place(tmp, tmp==-1, 1.)
+    #DA_innov.timeseries['obs_obs'] = DA_innov.timeseries['obs_obs'].where(DA_innov.timeseries['obs_assim']==-1)
+    #cvars = ['obs_obs']
+    #for i,cvar in enumerate(cvars):
+    #    if cvar != 'obs_assim':
+    #        DA_innov.timeseries[cvar] = DA_innov.timeseries[cvar]*tmp
+    #        #cond0 = DA_innov.timeseries['obs_assim'].values[:,0,:,:]!=False
+    #        #DA_innov.timeseries[cvar].values[:,0,:,:][cond0] = DA_innov.timeseries[cvar].where(cond1)
+
+    #del cond1
+
+    # get poros grid and bf1 and bf2 parameters
+    io = LDAS_io('daily',exp, domain, root)
+    [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
+    catparam = io.read_params('catparam')
+    poros = np.full(lons.shape, np.nan)
+    poros[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['poros'].values
+    bf1 = np.full(lons.shape, np.nan)
+    bf1[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['bf1'].values
+    bf2 = np.full(lons.shape, np.nan)
+    bf2[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['bf2'].values
+
+    tags = ['innov_mean','innov_var',
+            'n_valid_innov']
+
+    tc = DA_innov.grid.tilecoord
+    tg = DA_innov.grid.tilegrids
+    #lons = DA_innov.grid.ease_lons[tc['i_indg'].min():(tc['i_indg'].max()+1)]
+    #lats = DA_innov.grid.ease_lats[tc['j_indg'].min():(tc['j_indg'].max()+1)]
+    lons = lons[0,:]
+    lats = lats[:,0]
+
+    species = DA_innov.timeseries['species'].values
+
+    ds = ncfile_init(result_file, lats, lons, species, tags)
+
+    #DA_innov2 = LDAS_io('ObsFcstAna',exp+'_DA', domain, root)
+    #OL_mask = np.in1d(DA_innov.timeseries['time'].values, DA_innov2.timeseries['time'].values)
+    #DA_mask = np.in1d(DA_innov2.timeseries['time'].values, DA_innov.timeseries['time'].values)
+
+    for i_spc,spc in enumerate(species):
+        logging.info('species %i' % (i_spc))
+        tmp = DA_innov.timeseries['obs_obs'][:,i_spc,:,:].values
+        #np.place(tmp,DA_innov.timeseries['obs_assim'][:,i_spc,:,:]!=-1,np.nan)
+        #tmp = np.where(DA_innov.timeseries['obs_assim'][:,i_spc,:,:]!=-1,np.nan,tmp)
+        ds['innov_mean'][i_spc,:,:] = (tmp - DA_innov.timeseries['obs_fcst'][:,i_spc,:,:]).mean(dim='time',skipna=True).values
+        ds['innov_var'][i_spc,:,:] = (tmp - DA_innov.timeseries['obs_fcst'][:,i_spc,:,:]).var(dim='time',skipna=True).values
+        np.place(tmp, tmp==0., np.nan)
+        np.place(tmp, tmp==-9999., np.nan)
+        np.place(tmp, ~np.isnan(tmp), 1.)
+        np.place(tmp, np.isnan(tmp), 0.)
+        ds['n_valid_innov'][i_spc,:,:] = tmp.sum(axis=0)
+    del tmp
+
+    ds.close()
+
+
+def filter_diagnostics_evaluation_R(exp, domain, root, outputpath):
+
+    if not os.path.exists(outputpath):
+        os.makedirs(outputpath,exist_ok=True)
+    result_file = outputpath + 'filter_diagnostics_R_nonrescaled_obs.nc'
+    os.remove(result_file) if os.path.exists(result_file) else None
+
+    DA_innov = LDAS_io('ObsFcstAna',exp, domain, root)
+
+    # get poros grid and bf1 and bf2 parameters
+    io = LDAS_io('daily',exp, domain, root)
+    [lons,lats,llcrnrlat,urcrnrlat,llcrnrlon,urcrnrlon] = setup_grid_grid_for_plot(io)
+    catparam = io.read_params('catparam')
+    poros = np.full(lons.shape, np.nan)
+    poros[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['poros'].values
+    bf1 = np.full(lons.shape, np.nan)
+    bf1[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['bf1'].values
+    bf2 = np.full(lons.shape, np.nan)
+    bf2[io.grid.tilecoord.j_indg.values, io.grid.tilecoord.i_indg.values] = catparam['bf2'].values
+
+    tags = ['R_mean']
+
+    tc = DA_innov.grid.tilecoord
+    tg = DA_innov.grid.tilegrids
+    #lons = DA_innov.grid.ease_lons[tc['i_indg'].min():(tc['i_indg'].max()+1)]
+    #lats = DA_innov.grid.ease_lats[tc['j_indg'].min():(tc['j_indg'].max()+1)]
+    lons = lons[0,:]
+    lats = lats[:,0]
+
+    species = DA_innov.timeseries['species'].values
+
+    ds = ncfile_init(result_file, lats, lons, species, tags)
+
+    #DA_innov2 = LDAS_io('ObsFcstAna',exp+'_DA', domain, root)
+    #OL_mask = np.in1d(DA_innov.timeseries['time'].values, DA_innov2.timeseries['time'].values)
+    #DA_mask = np.in1d(DA_innov2.timeseries['time'].values, DA_innov.timeseries['time'].values)
+
+    for i_spc,spc in enumerate(species):
+        logging.info('species %i' % (i_spc))
+        for r,crow in enumerate(DA_innov.timeseries['lat']):
+            print('row: '+str(r))
+            if np.isnan(np.nanmean(DA_innov.timeseries['obs_obs'][:,i_spc,r,:])):
+                continue
+            for c,ccol in enumerate(DA_innov.timeseries['lon']):
+                a = DA_innov.timeseries['obs_obs'][:,i_spc,r,c]
+                b = DA_innov.timeseries['obs_fcst'][:,i_spc,r,c]
+                a=np.ma.masked_invalid(a)
+                b=np.ma.masked_invalid(b)
+                msk = (~a.mask & ~b.mask)
+                R = np.ma.corrcoef(a[msk],b[msk])[0,1]
+                if np.ma.is_masked(R)==False:
+                    ds['R_mean'][i_spc,r,c] = np.ma.corrcoef(a[msk],b[msk])[0,1]
+
+    ds.close()
+
 
 def filter_diagnostics_evaluation_gs(exp, domain, root, outputpath):
 
@@ -1289,7 +1483,7 @@ def filter_diagnostics_evaluation_old(exp, domain, root, outputpath):
 
 
 def filter_diagnostics_evaluation_compare(exp1, exp2, domain, root, outputpath):
-
+    # not working
     result_file = outputpath + 'filter_diagnostics.nc'
 
     DA_CLSM_innov = LDAS_io('ObsFcstAna',exp1, domain, root)
