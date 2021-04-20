@@ -18,16 +18,17 @@ from bat_pyldas.plotting import *
 from bat_pyldas.functions import read_wtd_data
 from validation_good_practice.ancillary import metrics
 
-plot_maps = 0
-plot_insitu = 1
+plot_maps = 1
+plot_insitu = 0
 plot_insitu_multiple_exp = 0
 
 # maps
 if plot_maps==1:
     root='/staging/leuven/stg_00024/OUTPUT/sebastiana'
-    exp = 'SAMERICA_M09_PEATCLSMTN_v01'
+    root='/scratch/leuven/317/vsc31786/output'
+    exp = 'SMOS_mwRTM_EASEv2_M09_PEATCLSM_IcPmNO_D3'
     domain = 'SMAP_EASEv2_M09'
-    outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/SA/Natural'
+    outpath = '/data/leuven/317/vsc31786/FIG_tmp/D3'
     # Catchment Parameters
     plot_catparams(exp, domain, root, outpath)
     # Temporal mean and standard deviation of variables
@@ -36,13 +37,14 @@ if plot_maps==1:
 # insitu
 if plot_insitu==1:
     ## in situ data
-    root='/staging/leuven/stg_00024/OUTPUT/sebastiana'
-    exp = 'INDONESIA_M09_PEATCLSMTN_v01'
+    root='/scratch/leuven/317/vsc31786/output'
+    exp = 'SMOS_mwRTM_EASEv2_M09_PEATCLSM_IcPmNO_D3'
     domain = 'SMAP_EASEv2_M09'
-    outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/IN/Natural'
+    outpath = '/data/leuven/317/vsc31786/FIG_tmp/D3'
     os.makedirs(outpath,exist_ok=True)
-    insitu_path = '/data/leuven/317/vsc31786/peatland_data/tropics'
+    insitu_path = '/data/leuven/317/vsc31786/peatland_data'
     mastertable_filename = 'WTD_TROPICS_MASTER_TABLE_ALLDorN.csv'
+    mastertable_filename = 'WTD_peatlands_global_WGS84.csv'
     ####
     wtd_obs, wtd_mod, precip_obs, precip_mod = read_wtd_data(insitu_path, mastertable_filename, exp, domain, root)
     plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, exp, outpath)
