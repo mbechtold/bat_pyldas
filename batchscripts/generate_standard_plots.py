@@ -19,11 +19,13 @@ from bat_pyldas.functions import read_wtd_data
 from validation_good_practice.ancillary import metrics
 
 plot_maps = 0
-plot_insitu = 0
+plot_insitu = 1
 plot_figure_maps = 0
 plot_map_peat_sites = 0
 plot_ET_insitu = 0
 plot_insitu_multiple_exp = 0
+plot_insitu_DA = 0
+plot_DA_diagnostics = 0
 
 # maps
 if plot_maps==1:
@@ -57,28 +59,55 @@ if plot_map_peat_sites==1:
 if plot_insitu==1:
     ## in situ data
     root='/staging/leuven/stg_00024/OUTPUT/sebastiana'
-    exp = 'SAMERICA_AP_M09_PEATCLSMTN_v01'
+    exp = 'INDONESIA_AP_M09_PEATCLSMTN_v01'
     domain = 'SMAP_EASEv2_M09'
-    outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/SA/Natural/AP'
+    outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/IN/Natural/AP'
     os.makedirs(outpath,exist_ok=True)
     insitu_path = '/data/leuven/317/vsc31786/peatland_data'
     mastertable_filename = 'WTD_TROPICS_MASTER_TABLE_ALLDorN.csv'
-    mastertable_filename = 'WTD_peatlands_global_WGS84.csv'
     ####
     wtd_obs, wtd_mod, precip_obs, precip_mod, sfmc_mod, rzmc_mod, srfexc, rzexc, catdef = read_wtd_data(insitu_path, mastertable_filename, exp, domain, root)
     plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, sfmc_mod, rzmc_mod, srfexc, rzexc, catdef, exp, outpath)
 
 if plot_ET_insitu == 1:
     root='/staging/leuven/stg_00024/OUTPUT/sebastiana'
-    exp = 'INDONESIA_AP_M09_PEATCLSM_v01'
+    exp = 'INDONESIA_AP_M09_PEATCLSMTD_v01'
     domain = 'SMAP_EASEv2_M09'
-    outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/IN/Northern/AP/Natural_sites/ET'
+    outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/IN/Drained/AP/ET'
     os.makedirs(outpath,exist_ok=True)
     insitu_path = '/data/leuven/317/vsc31786/peatland_data/tropics'
     mastertable_filename = 'ET_TROPICS_MASTER_TABLE.csv'
     ####
     et_obs, et_mod, ee_obs, ee_mod, br_obs, br_mod, rn_obs, rn_mod, sh_obs, sh_mod, le_obs, le_mod , zbar_mod, eveg_mod, esoi_mod, eint_mod, wtd_obs, ghflux_mod, Psurf_mod, Tair_mod, Tair_obs, AR1, AR2, AR4, sfmc,  rzmc, srfexc, rzexc, catdef, Qair, vpd_obs, Wind = read_et_data(insitu_path, mastertable_filename, exp, domain, root)
     plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_mod, rn_obs, rn_mod, sh_obs, sh_mod, le_obs, le_mod, zbar_mod, eveg_mod, esoi_mod, eint_mod, wtd_obs, ghflux_mod, Psurf_mod, Tair_mod, Tair_obs, AR1, AR2, AR4, sfmc, rzmc, srfexc, rzexc, catdef, Qair, vpd_obs, Wind, exp, outpath)
+
+
+if plot_insitu_DA==1:
+    ## in situ data
+    root='/staging/leuven/stg_00024/OUTPUT/sebastiana'
+    exp_OL = 'SMOS_mwRTM_EASEv2_M09_PEATCLSM_IcPmCO_OL'
+    exp_DA = 'SMOS_mwRTM_EASEv2_M09_PEATCLSM_IcPmCO_DA'
+    domain = 'SMAP_EASEv2_M09'
+    outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/Data_assimilation/CO/PEATCLSM'
+    os.makedirs(outpath,exist_ok=True)
+    insitu_path = '/data/leuven/317/vsc31786/peatland_data'
+    mastertable_filename = 'WTD_TROPICS_MASTER_TABLE_ALLDorN.csv'
+    wtd_obs, wtd_mod_OL, precip_obs, precip_mod, sfmc_mod, rzmc_mod, srfexc, rzexc, catdef = read_wtd_data(insitu_path, mastertable_filename, exp_OL, domain, root)
+    wtd_obs, wtd_mod_DA, precip_obs, precip_mod, sfmc_mod, rzmc_mod, srfexc, rzexc, catdef = read_wtd_data(insitu_path, mastertable_filename, exp_DA, domain, root)
+    wtd_mod = [wtd_mod_OL, wtd_mod_DA]
+    plot_skillmetrics_comparison_wtd_DA(wtd_obs, wtd_mod, outpath, exp_DA, domain, root)
+
+if plot_DA_diagnostics==1: #only DA experiments, no OL
+    root='/staging/leuven/stg_00024/OUTPUT/sebastiana'
+    exp = 'SMOS_mwRTM_EASEv2_M09_CLSM_IcPmCO_DA'
+    domain = 'SMAP_EASEv2_M09'
+    outpath = '/data/leuven/324/vsc32460/FIG/in_situ_comparison/Data_assimilation/CO/DA'
+    #plot_obs_std_single(exp, domain, root, outpath)
+    #plot_obs_ana_std_quatro(exp, domain, root, outpath)
+    #plot_scaling_parameters_average(exp, domain, root, outpath)
+    plot_filter_diagnostics(exp, domain, root, outpath)
+    #plot_lag_autocorr_innov(exp, domain, root, outpath)
+
 
 # insitu
 if plot_insitu_multiple_exp==1:

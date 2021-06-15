@@ -14,15 +14,15 @@ from shutil import move
 
 param = 'daily'
 # processing
-proc_daily = 1
+proc_daily = 0
 proc_inst = 0
-proc_ObsFcstAna = 1
+proc_ObsFcstAna = 0
 proc_incr = 0
 proc_ensstd = 0
 proc_total_water = 0
-proc_daily_stats = 1
+proc_daily_stats = 0
 proc_ensstd_stats = 0
-proc_filter_diagnostics = 0
+proc_filter_diagnostics = 1
 proc_filter_diagnostics_gs = 0
 proc_filter_diagnostics_incr = 0
 proc_scaling = 0
@@ -31,9 +31,6 @@ proc_filter_diagnostics_evaluation_OL_with_rescaled_obs = 0
 proc_filter_diagnostics_evaluation_R = 0
 proc_tau_and_lag1_autocor = 0
 
-# date_to='2010-08-01'
-# date_from='1980-08-01'
-# date_to='1982-12-31'
 date_from = None
 date_to = None
 # date_from='1980-01-01'
@@ -43,24 +40,15 @@ latmax = 90.
 lonmin = -180.
 lonmax = 180.
 
-
-# latmin=53.
-# latmax=71.
-# lonmin=-160.
-# lonmax=-100.
-
 def main(argv):
-    root = '/scratch/leuven/317/vsc31786/output/'
-    # root='/staging/leuven/stg_00024/OUTPUT/michelb/calibration_Icarus/'
-    root = '/staging/leuven/stg_00024/OUTPUT/michelb/'
-    # exp='SMOSrw_mwRTM_EASEv2_M09_CLSM_NORTH'
-    # exp='GLOB_M36_7Thv_TWS_FOV0_M2'
-    exp = 'SMAP_EASEv2_M09_SMOSfw'
-    exp = 'SMAP_EASEv2_M09_INLv2_PEATMAP_SMOSfw'
-    exp = 'CONGO_M09_PEATCLSMTN_v02_SMOSfw_OL'
-    exp = 'CONGO_M09_PEATCLSMTN_v02_spinup'
-    exp = 'SMOSrw_mwRTM_EASEv2_M09_CLSM_Icarus_GLOBAL'
-    exp = 'SMOS_mwRTM_EASEv2_M09_CLSM_IcNO_DA'
+    root = '/scratch/leuven/324/vsc32460/output/TROPICS/'
+    # root = '/staging/leuven/stg_00024/OUTPUT/sebastiana/'
+    # exp = 'SMAP_EASEv2_M09_SMOSfw'
+    # exp = 'SMAP_EASEv2_M09_INLv2_PEATMAP_SMOSfw'
+    # exp = 'CONGO_M09_PEATCLSMTN_v02_SMOSfw_OL'
+    # exp = 'CONGO_M09_PEATCLSMTN_v02_spinup'
+    # exp = 'SMOSrw_mwRTM_EASEv2_M09_CLSM_Icarus_GLOBAL'
+    exp = 'SMOS_mwRTM_EASEv2_M09_CLSM_IcPmCO_DA'
     domain = 'SMAP_EASEv2_M09'
     # domain='SMAP_EASEv2_M36_GLOB'
     # vscgroup = os.getenv("HOME").split("/")[3]

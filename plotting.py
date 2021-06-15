@@ -971,7 +971,7 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         stderr = np.nanstd(smooths, axis=1, ddof=0)
         plt.plot(xgrid, mean, color='k', linewidth=3.5)
         plt.fill_between(xgrid, mean - 1.96 * stderr, mean + 1.96 * stderr, alpha=0.25)
-        plt.ylabel('In situ potential\n  ET (mm/day)', fontsize=fontsize + 24)
+        plt.ylabel('In situ ET$\mathrm{_{pot}}$ (mm/day)', fontsize=fontsize + 24)
         plt.ylim([1, 8.6])
         plt.xlabel('')
 
@@ -984,7 +984,7 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         stderr = np.nanstd(smooths, axis=1, ddof=0)
         plt.plot(xgrid, mean, color='k', linewidth=3.5)
         plt.fill_between(xgrid, mean - 1.96 * stderr, mean + 1.96 * stderr, alpha=0.25)
-        plt.ylabel('Model potential\n  ET (mm/day)', fontsize=fontsize + 24)
+        plt.ylabel('Model ET$\mathrm{_{pot}}$ (mm/day)', fontsize=fontsize + 24)
         plt.ylim([1, 8.6])
         plt.xlabel('')
 
@@ -996,7 +996,7 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         stderr = np.nanstd(smooths, axis=1, ddof=0)
         plt.plot(xgrid, mean, color='k', linewidth=3.5)
         plt.fill_between(xgrid, mean - 1.96 * stderr, mean + 1.96 * stderr, alpha=0.25)
-        plt.ylabel('In situ net radiation (W/m²)', fontsize=fontsize + 24)
+        plt.ylabel('In situ R$\mathrm{_{net}}$ (W/m²)', fontsize=fontsize + 24)
         plt.xlabel('In situ WTD (m)', fontsize=fontsize + 24)
         plt.ylim([30, 260])
 
@@ -1008,7 +1008,7 @@ def plot_skillmetrics_comparison_et(et_obs, et_mod, ee_obs, ee_mod, br_obs, br_m
         stderr = np.nanstd(smooths, axis=1, ddof=0)
         plt.plot(xgrid, mean, color='k', linewidth=3.5)
         plt.fill_between(xgrid, mean - 1.96 * stderr, mean + 1.96 * stderr, alpha=0.25)
-        plt.ylabel('Model net radiation (W/m²)', fontsize=fontsize + 24)
+        plt.ylabel('Model R$\mathrm{_{net}}$ (W/m²)', fontsize=fontsize + 24)
         plt.xlabel('In situ WTD (m)', fontsize=fontsize + 24)
         plt.ylim([30, 260])
         ax1.get_legend().remove()
@@ -1435,7 +1435,7 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, s
         plt.ylabel('z-score')
         plt.legend('P_mod', 'P_obs')
 
-        if (-10) in set(df_tmp_precip['data_obs']):
+        if ((-10) in set(df_tmp_precip['data_obs'])):
             ax3 = plt.subplot2grid((3, 3), (2, 0), rowspan=1, colspan=3, fig=None)
             df_tmp_precip = df_tmp_precip[['data_mod', 'data_obs']]
             df_tmp_precip.plot(ax=ax3, fontsize=fontsize, style=['-', '.'], color=color, linewidth=2, markersize=4.5,
@@ -1459,13 +1459,13 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, s
             # plt.xticks(np.arange(0, 121, step=20))
             # plt.yticks(np.arange(0, 251, step=50))
 
-            # cumulative rainfall plot (adjust the colspan to 2 in ax3)
-            # ax4 = plt.subplot2grid((3, 3), (2, 2), rowspan=1, colspan=2, fig=None)
-            # df_tmp_precip_sum = df_tmp_precip.dropna(axis=0, how='any')
-            # df_tmp_precip_sum = df_tmp_precip_sum[['data_mod', 'data_obs']].cumsum(skipna=True)
-            # df_tmp_precip_sum.plot(ax=ax4, fontsize=fontsize, style=['-', '-'], color=color, linewidth=2,
-            #                       markersize=0.5, xlim=Xlim_wtd)
-            # plt.ylabel('Cumulative precipitation [mm/d]')
+            #cumulative rainfall plot (adjust the colspan to 2 in ax3)
+            #ax4 = plt.subplot2grid((3, 3), (2, 2), rowspan=1, colspan=1, fig=None)
+            #df_tmp_precip_sum = df_tmp_precip.dropna(axis=0, how='any')
+            #df_tmp_precip_sum = df_tmp_precip_sum[['data_mod', 'data_obs']].cumsum(skipna=True)
+            #df_tmp_precip_sum.plot(ax=ax4, fontsize=fontsize, style=['-', '-'], color=color, linewidth=2,
+            #                      markersize=0.5, xlim=Xlim_wtd)
+            #plt.ylabel('Cumulative precipitation [mm/d]')
 
         plt.tight_layout()
         fname = site
@@ -1642,16 +1642,18 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, s
         plt.close()
 
         # SA! added this temporarly for Dwi, needs this in fire simulations
-        # if (site == 'Dwi_1'):
-        #    Dwi_wtd= wtd_mod[site]
-        #    Dwi_rzmc= rzmc_mod[site]
-        #    Dwi_sfmc= sfmc_mod[site]
-        #    Dwi_precip= precip_mod[site]
-        #    df_Dwi=pd.concat([Dwi_wtd, Dwi_rzmc, Dwi_sfmc,Dwi_precip],axis=1)
-        #    df_Dwi = df_Dwi.loc['2018-9-14':'2018-10-18']
-        #    print(df_Dwi)
-        #    path_changing = os.path.join(outpath + '_Dwi.csv')
-        #    df_Dwi.to_csv(path_changing, index=True, header=['WTD [m]', 'RZMC [m3/m3]','SFMC [m3/m3]','PRECIP [mm]'])
+        if (site == 'Dwi_1'):
+            Dwi_wtd= wtd_mod[site]
+            Dwi_rzmc= rzmc_mod[site]
+            Dwi_sfmc= sfmc_mod[site]
+            Dwi_precip= precip_mod[site]
+            df_Dwi=pd.concat([Dwi_wtd, Dwi_rzmc, Dwi_sfmc,Dwi_precip],axis=1)
+            df_Dwi = df_Dwi.loc['2000-1-1':'2020-12-31']
+            print(df_Dwi)
+            path_changing = os.path.join(outpath + '_Dwi.csv')
+            df_Dwi.to_csv(path_changing, index=True, header=['WTD [m]', 'RZMC [m3/m3]','SFMC [m3/m3]','PRECIP [mm]'])
+        else:
+             print('ok')
 
     df_allmetrics = df_metrics.join(df_metrics_P)
     df_allmetrics_new = df_allmetrics[df_allmetrics['R_P (-)'] > 0.28].dropna()
@@ -1677,6 +1679,18 @@ def plot_skillmetrics_comparison_wtd(wtd_obs, wtd_mod, precip_obs, precip_mod, s
         mean['RMSD (m)']) + ', mean anomR (m) = ' + str(mean['anomR (-)'])
     plt.title(Title, fontsize=9)
     plt.savefig(fname_long, dpi=150)
+    plt.close()
+
+    # Plot boxplot for metrics of WTD only
+    plt.figure()
+    df_metrics_P.boxplot()
+    mean = df_metrics_P.mean()
+    mean = mean.round(decimals=2)
+    Title = 'mean bias (m) = ' + str(mean['bias_P (m)']) + ', mean ubRMSD (m) = ' + str(
+        mean['ubRMSD_P (m)']) + ', mean R (-) = ' + str(mean['R_P (-)']) + '\n' + ' mean RMSD (m) = ' + str(
+        mean['RMSD_P (m)'])
+    plt.title(Title, fontsize=9)
+    plt.savefig('/data/leuven/324/vsc32460/FIG/in_situ_comparison/Data_assimilation/CO/Precipitation_boxplot_SEA.png', dpi=250)
     plt.close()
 
     # Sebastian added this to export the skillmetrics of each run so that it can be combined in 1 figure
@@ -2367,18 +2381,81 @@ def plot_all_variables_trends(exp, domain, root, outpath):
                               plot_title=plot_title)
 
 
-def plot_skillmetrics_comparison_wtd_DA(wtd_obs, wtd_mod, precip_obs, exp, outpath):
+def plot_skillmetrics_comparison_wtd_DA(wtd_obs, wtd_mod, outpath, exp_DA, domain, root):
     # Initiate dataframe to store metrics in.
     INDEX = wtd_obs.columns
+    COL = ['bias (m)', 'RMSD (m)', 'ubRMSD (m)', 'R (-)', 'anomR (-)']
+    df_metrics_OL = pd.DataFrame(index=INDEX, columns=COL, dtype=float)
+    df_metrics_DA = pd.DataFrame(index=INDEX, columns=COL, dtype=float)
+
+    # to plot observation updates
+    io = LDAS_io('incr', exp=exp_DA, domain=domain, root=root)
+    tc = io.grid.tilecoord
+
+    # to load in situ site coordinates
+    insitu_path = '/data/leuven/317/vsc31786/peatland_data/tropics/WTD'
+    mastertable_filename = 'WTD_TROPICS_MASTER_TABLE_ALLDorN.csv'
+    filenames = find_files(insitu_path, mastertable_filename)
+    master_table = pd.read_csv(filenames, sep=';')
 
     for c, site in enumerate(wtd_obs.columns):
         df_tmp = pd.concat((wtd_obs[site], wtd_mod[0][site], wtd_mod[1][site]), axis=1)
         df_tmp.columns = ['In-situ', 'OL', 'DA']
 
+        df_tmp_OL = copy.deepcopy(df_tmp[['OL', 'In-situ']])
+        df_tmp_OL = df_tmp_OL[['OL', 'In-situ']]
+        df_tmp_DA = copy.deepcopy(df_tmp[['DA','In-situ']])
+        df_tmp_DA = df_tmp_DA[['DA', 'In-situ']]
+
+        #metric calculation
+        bias_site_OL = metrics.bias(df_tmp_OL)  # Bias = bias_site[0]
+        ubRMSD_site_OL = metrics.ubRMSD(df_tmp_OL)  # ubRMSD = ubRMSD_site[0]
+        pearson_R_site_OL = metrics.Pearson_R(df_tmp_OL)  # Pearson_R = pearson_R_site[0]
+        RMSD_site_OL = copy.deepcopy(ubRMSD_site_OL)
+        RMSD_site_OL[0] = (ubRMSD_site_OL[0] ** 2 + bias_site_OL[0] ** 2) ** 0.5
+
+        bias_site_DA = metrics.bias(df_tmp_DA)  # Bias = bias_site[0]
+        ubRMSD_site_DA = metrics.ubRMSD(df_tmp_DA)  # ubRMSD = ubRMSD_site[0]
+        pearson_R_site_DA = metrics.Pearson_R(df_tmp_DA)  # Pearson_R = pearson_R_site[0]
+        RMSD_site_DA = copy.deepcopy(ubRMSD_site_DA)
+        RMSD_site_DA[0] = (ubRMSD_site_DA[0] ** 2 + bias_site_DA[0] ** 2) ** 0.5
+
+        #anomR calculation with a minimum of three years of data
+        threeYears = df_tmp['In-situ'].count()
+        if threeYears >= 1095:
+            anomaly_obs = calc_anomaly(df_tmp_OL['In-situ'])
+            anomaly_mod = calc_anomaly(df_tmp_OL['OL'])
+            anomalies = pd.concat([anomaly_mod, anomaly_obs], axis=1)
+            anomR_site_OL = metrics.Pearson_R(anomalies)
+            anomaly_obs = calc_anomaly(df_tmp_DA['In-situ'])
+            anomaly_mod = calc_anomaly(df_tmp_DA['DA'])
+            anomalies = pd.concat([anomaly_mod, anomaly_obs], axis=1)
+            anomR_site_DA = metrics.Pearson_R(anomalies)
+        else:
+            anomR_site = np.array(['nan'])
+            anomR_site_OL = pd.Series(anomR_site, index=['R'])
+            anomR_site_DA = pd.Series(anomR_site, index=['R'])
+
+        # Save metrics in df_metrics.
+        df_metrics_OL.loc[site]['bias (m)'] = bias_site_OL[0]
+        df_metrics_OL.loc[site]['ubRMSD (m)'] = ubRMSD_site_OL[0]
+        df_metrics_OL.loc[site]['R (-)'] = pearson_R_site_OL[0]
+        df_metrics_OL.loc[site]['RMSD (m)'] = RMSD_site_OL[0]
+        df_metrics_OL.loc[site]['anomR (-)'] = anomR_site_OL[0]
+
+        df_metrics_DA.loc[site]['bias (m)'] = bias_site_DA[0]
+        df_metrics_DA.loc[site]['ubRMSD (m)'] = ubRMSD_site_DA[0]
+        df_metrics_DA.loc[site]['R (-)'] = pearson_R_site_DA[0]
+        df_metrics_DA.loc[site]['RMSD (m)'] = RMSD_site_DA[0]
+        df_metrics_DA.loc[site]['anomR (-)'] = anomR_site_DA[0]
+
         # Create x-axis matching in situ data.
         x_start = df_tmp.index[0]  # Start a-axis with the first day with an observed wtd value.
         x_end = df_tmp.index[-1]  # End a-axis with the last day with an observed wtd value.
         Xlim = [x_start, x_end]
+
+        site_lon = master_table.loc[master_table['site_id'] == site,['lon']].values[0]
+        site_lat = master_table.loc[master_table['site_id'] == site,['lat']].values[0]
 
         # Calculate z-score for the time series.
         df_zscore = df_tmp.dropna(axis=0).apply(zscore)
@@ -2387,28 +2464,77 @@ def plot_skillmetrics_comparison_wtd_DA(wtd_obs, wtd_mod, precip_obs, exp, outpa
         fontsize = 12
 
         ax1 = plt.subplot(311)
-        df_tmp.plot(ax=ax1, fontsize=fontsize, style=['.', '-', '-'], linewidth=2, xlim=Xlim)
+        df_tmp.plot(ax=ax1, fontsize=fontsize, style=['.', '-', '-'], color = ['#1f77b4', 'g', 'darkorange'], linewidth=2, xlim=Xlim)
         plt.ylabel('zbar [m]')
-
-        plt.title(site)
+        Title = site
+        plt.title(Title)
 
         ax1 = plt.subplot(312)
-        df_tmp.plot(ax=ax1, fontsize=fontsize, style=['.', '-', '-'], linewidth=2,
+        df_tmp_OL = pd.concat((wtd_obs[site], wtd_mod[0][site]), axis=1)
+        df_tmp_OL.columns=['In-situ', 'OL']
+        df_tmp_OL.plot(ax=ax1, fontsize=fontsize, style=['.', '-'], color = ['#1f77b4','g'] ,linewidth=2,
                     xlim=[df_zscore.index[0], df_zscore.index[-1]])
         plt.ylabel('zbar [m]')
 
+        Title = 'OL' + '\n' + ' bias = ' + str(bias_site_OL[0]) + ', ubRMSD = ' + str(
+            ubRMSD_site_OL[0]) + ', R = ' + str(pearson_R_site_OL[0]) + ', RMSD = ' + str(
+            RMSD_site_OL[0]) + ', anomR = ' + str(anomR_site_OL[0])
+        plt.title(Title)
+
         ax2 = plt.subplot(313)
-        df_zscore.plot(ax=ax2, fontsize=fontsize, style=['.', '-', '-'], linewidth=2,
+        df_tmp_DA = pd.concat((wtd_obs[site], wtd_mod[1][site]), axis=1)
+        df_tmp_DA.columns=['In-situ', 'DA']
+        df_tmp_DA.plot(ax=ax2, fontsize=fontsize, style=[ '.', '-'], color = ['#1f77b4','darkorange'],linewidth=2,
                        xlim=[df_zscore.index[0], df_zscore.index[-1]])
-        plt.ylabel('z-score')
+        plt.ylabel('zbar [m]')
+        Title = 'DA' + '\n' + ' bias = ' + str(bias_site_DA[0]) + ', ubRMSD = ' + str(
+            ubRMSD_site_DA[0]) + ', R = ' + str(pearson_R_site_DA[0]) + ', RMSD = ' + str(
+            RMSD_site_DA[0]) + ', anomR = ' + str(anomR_site_DA[0])
+        plt.title(Title)
 
         plt.legend()
-
         plt.tight_layout()
         fname = site
         fname_long = os.path.join(outpath + '/comparison_insitu_data/' + fname + '_DA.png')
         plt.savefig(fname_long, dpi=150)
         plt.close()
+
+
+    plt.figure(figsize=(16, 5))
+    ax1 = plt.subplot(121)
+    df_metrics_OL.boxplot(ax=ax1, medianprops=dict(color = 'g'))
+    fname = 'metrics_OL'
+    fname_long = os.path.join(outpath + '/comparison_insitu_data/' + fname + '.png')
+    mean = df_metrics_OL.mean()
+    mean = mean.round(decimals=2)
+    Title = 'mean bias (m) = ' + str(mean['bias (m)']) + ', mean ubRMSD (m) = ' + str(
+        mean['ubRMSD (m)']) + ', mean R (-) = ' + str(mean['R (-)']) + '\n' + ' mean RMSD (m) = ' + str(
+        mean['RMSD (m)']) + ', mean anomR (m) = ' + str(mean['anomR (-)'])
+    plt.title(Title, fontsize=9)
+
+    ax1 = plt.subplot(122)
+    df_metrics_DA.boxplot(ax=ax1, medianprops=dict(color = 'darkorange'))
+    fname = 'metrics_DA'
+    fname_long = os.path.join(outpath + '/comparison_insitu_data/' + fname + '.png')
+    mean = df_metrics_DA.mean()
+    mean = mean.round(decimals=2)
+    Title = 'mean bias (m) = ' + str(mean['bias (m)']) + ', mean ubRMSD (m) = ' + str(
+        mean['ubRMSD (m)']) + ', mean R (-) = ' + str(mean['R (-)']) + '\n' + ' mean RMSD (m) = ' + str(
+        mean['RMSD (m)']) + ', mean anomR (m) = ' + str(mean['anomR (-)'])
+    plt.title(Title, fontsize=9)
+
+    plt.savefig(fname_long, dpi=150)
+    plt.close()
+
+    plt.figure()
+    df_metrics_diff=df_metrics_DA.subtract(df_metrics_OL)
+    df_metrics_diff.boxplot()
+    fname = 'metrics_diff'
+    fname_long = os.path.join(outpath + '/comparison_insitu_data/' + fname + '.png')
+    Title = 'DA-OL'
+    plt.title(Title, fontsize=9)
+    plt.savefig(fname_long, dpi=150)
+    plt.close()
 
 
 def plot_anomaly_JulyAugust_zbar(exp, domain, root, outpath):
@@ -2740,6 +2866,25 @@ def plot_RTMparams(exp, domain, root, outpath):
                           plot_title='filled=0, calib=1 (peat distribution)', cmap='winter')
 
 
+def plot_lag_autocorr_innov(exp, domain, root, outpath):
+    io = LDAS_io('ObsFcstAna', exp=exp, domain=domain, root=root)
+    [lons, lats, llcrnrlat, urcrnrlat, llcrnrlon, urcrnrlon] = setup_grid_grid_for_plot(io)
+
+    # calculate variable to plot
+    data = io.timeseries['obs_obs'] - io.timeseries['obs_fcst']
+    data = data.where(data != 0)
+
+    data0 = obs_M09_to_M36(data[0, :, :])
+    data1 = obs_M09_to_M36(data[1, :, :])
+    data2 = obs_M09_to_M36(data[2, :, :])
+    data3 = obs_M09_to_M36(data[3, :, :])
+
+    tau, acor_lag1 = lag1_autocorr_from_numpy_array(data)
+
+
+
+
+
 def plot_lag1_autocor(exp, domain, root, outpath):
     # set up grid
     io = LDAS_io('incr', exp=exp, domain=domain, root=root)
@@ -2843,6 +2988,12 @@ def plot_obs_ana_std_quatro(exp, domain, root, outpath):
     data2 = obs_M09_to_M36(data_std2)
     data3 = obs_M09_to_M36(data_std3)
 
+    mstats = list(['m = %.2f, s = %.2f' % (np.nanmean(data0), np.nanstd(data0)),
+                   'm = %.2f, s = %.2f' % (np.nanmean(data1), np.nanstd(data1)),
+                   'm = %.2f, s = %.2f' % (np.nanmean(data2), np.nanstd(data2)),
+                   'm = %.2f, s = %.2f' % (np.nanmean(data3), np.nanstd(data3))
+                   ])
+
     # other parameter definitions
     cmin = 0
     cmax = 20
@@ -2851,7 +3002,7 @@ def plot_obs_ana_std_quatro(exp, domain, root, outpath):
     figure_quatro_default(data, lons=lons, lats=lats, cmin=cmin, cmax=cmax, llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
                           llcrnrlon=llcrnrlon, urcrnrlon=urcrnrlon, outpath=outpath, exp=exp, fname=fname,
                           plot_title=list(['obs_ana std (mm) H-Asc', 'obs_ana std (mm) H-Des', 'obs_ana std (mm) V-Asc',
-                                           'obs_ana std (mm) V-Des']))
+                                           'obs_ana std (mm) V-Des']),mstats=mstats)
 
 
 def plot_filter_diagnostics(exp, domain, root, outpath):
@@ -2889,22 +3040,31 @@ def plot_filter_diagnostics(exp, domain, root, outpath):
     data2 = obs_M09_to_M36(data)
     data = ds['obs_mean'][3, :, :].values
     data3 = obs_M09_to_M36(data)
-    cmin = 230.
+    data0[poros < 0.7] = np.nan
+    data1[poros < 0.7] = np.nan
+    data2[poros < 0.7] = np.nan
+    data3[poros < 0.7] = np.nan
+    cmin = 250.
     cmax = 290.
-    fname = 'obs_mean'
+    fname = 'obs_mean_peatonly'
     # my_title='innov_mean: m = %.2f, s = %.2f [mm]' % (np.nanmean(data0),np.nanstd(data0))
     data_all = list([data0, data1, data2, data3])
+    mstats = list(['m = %.2f, s = %.2f' % (np.nanmean(data0), np.nanstd(data0)),
+                   'm = %.2f, s = %.2f' % (np.nanmean(data1), np.nanstd(data1)),
+                   'm = %.2f, s = %.2f' % (np.nanmean(data2), np.nanstd(data2)),
+                   'm = %.2f, s = %.2f' % (np.nanmean(data3), np.nanstd(data3))
+                   ])
     figure_quatro_default(data=data_all, lons=lons, lats=lats, cmin=cmin, cmax=cmax, llcrnrlat=llcrnrlat,
                           urcrnrlat=urcrnrlat,
                           llcrnrlon=llcrnrlon, urcrnrlon=urcrnrlon, outpath=outpath, exp=exp, fname=fname,
-                          plot_title=(['obs_mean_H_Asc', 'obs_mean_H_Des', 'obs_mean_V_Asc', 'obs_mean_V_Des']))
+                          plot_title=(['obs_mean_H_Asc', 'obs_mean_H_Des', 'obs_mean_V_Asc', 'obs_mean_V_Des']),mstats=mstats)
 
     ############## n_valid_innov
     data = ds['n_valid_innov'][:, :, :].sum(dim='species', skipna=True) / 2.0 / N_days
     data = data.where(data != 0)
     data = obs_M09_to_M36(data)
-    cmin = 0
-    cmax = 0.35
+    cmin = 0.
+    cmax = 0.4
     fname = 'n_valid_innov'
     figure_single_default(data, lons=lons, lats=lats, cmin=cmin, cmax=cmax, llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
                           llcrnrlon=llcrnrlon, urcrnrlon=urcrnrlon, outpath=outpath, exp=exp, fname=fname,
@@ -2914,56 +3074,54 @@ def plot_filter_diagnostics(exp, domain, root, outpath):
     data = ds['n_valid_incr'] / N_days
     data = data.where(data != 0)
     data = obs_M09_to_M36(data)
-    cmin = 0
-    cmax = 1.00
+    cmin = 0.
+    cmax = 0.8
     fname = 'n_valid_incr'
     figure_single_default(data, lons=lons, lats=lats, cmin=cmin, cmax=cmax, llcrnrlat=llcrnrlat, urcrnrlat=urcrnrlat,
                           llcrnrlon=llcrnrlon, urcrnrlon=urcrnrlon, outpath=outpath, exp=exp, fname=fname,
                           plot_title='N per day: m = %.2f, s = %.2f' % (np.nanmean(data), np.nanstd(data)))
 
     ########## norm innov std double#############
-    data = ds['norm_innov_var'][0, :, :].values ** 0.5
-    data0 = obs_M09_to_M36(data)
-    data = ds['norm_innov_var'][1, :, :].values ** 0.5
-    data1 = obs_M09_to_M36(data)
-    data = ds['norm_innov_var'][2, :, :].values ** 0.5
-    data2 = obs_M09_to_M36(data)
-    data = ds['norm_innov_var'][3, :, :].values ** 0.5
-    data3 = obs_M09_to_M36(data)
-    data0[poros < 0.7] = np.nan
-    data1[poros < 0.7] = np.nan
-    data2[poros < 0.7] = np.nan
-    data3[poros < 0.7] = np.nan
-    data0 = 0.5 * (data0 + data1)
-    data1 = 0.5 * (data2 + data3)
-    data2 = 0.5 * (data0 + data1)
-    cmin = 0.
-    cmax = 2.
-    fname = 'norm_innov_std_double'
-    my_title0 = r'$H-pol,\/std(normalized\/O-F)\/(-)$'
-    my_title1 = r'$V-pol,\/std(normalized\/O-F)\/(-)$'
-    my_title2 = r'$std(normalized\/O-F)\/CLSM\/(-)$'
-    mstats = list(['m = %.2f, s = %.2f' % (np.nanmean(data0), np.nanstd(data0)),
-                   'm = %.2f, s = %.2f' % (np.nanmean(data1), np.nanstd(data1)),
-                   'm = %.2f, s = %.2f' % (np.nanmean(data2), np.nanstd(data2))
-                   ])
-    latmin = 45.
-    latmax = 70.
-    lonmin = -170.
-    lonmax = 95.
-    lons1 = lons
-    lats1 = lats
-    [data0, lons, lats, llcrnrlat, urcrnrlat, llcrnrlon, urcrnrlon] = figure_zoom(data0, lons1, lats1, latmin, latmax,
-                                                                                  lonmin, lonmax)
-    [data1, lons, lats, llcrnrlat, urcrnrlat, llcrnrlon, urcrnrlon] = figure_zoom(data1, lons1, lats1, latmin, latmax,
-                                                                                  lonmin, lonmax)
-    [data2, lons, lats, llcrnrlat, urcrnrlat, llcrnrlon, urcrnrlon] = figure_zoom(data2, lons1, lats1, latmin, latmax,
-                                                                                  lonmin, lonmax)
-    data_all = list([data0, data1, data2])
-    figure_triple_default(data=data_all, lons=lons, lats=lats, cmin=cmin, cmax=cmax, llcrnrlat=llcrnrlat,
-                          urcrnrlat=urcrnrlat,
-                          llcrnrlon=llcrnrlon, urcrnrlon=urcrnrlon, outpath=outpath, exp=exp, fname=fname,
-                          plot_title=([my_title0, my_title1, my_title2]), mstats=mstats, cmap='jet')
+    #data = ds['norm_innov_var'][0, :, :].values ** 0.5
+    #data0 = obs_M09_to_M36(data)
+    #data = ds['norm_innov_var'][1, :, :].values ** 0.5
+    #data1 = obs_M09_to_M36(data)
+    #data = ds['norm_innov_var'][2, :, :].values ** 0.5
+    #data2 = obs_M09_to_M36(data)
+    #data = ds['norm_innov_var'][3, :, :].values ** 0.5
+    #data3 = obs_M09_to_M36(data)
+    #data0[poros < 0.7] = np.nan
+    #data1[poros < 0.7] = np.nan
+    #data2[poros < 0.7] = np.nan
+    #data3[poros < 0.7] = np.nan
+    #data0 = 0.5 * (data0 + data1)
+    #data1 = 0.5 * (data2 + data3)
+    #data2 = 0.5 * (data0 + data1)
+    #cmin = 0.
+    #cmax = 2.
+    #fname = 'norm_innov_std_double'
+    #my_title0 = r'$H-pol,\/std(normalized\/O-F)\/(-)$'
+    #my_title1 = r'$V-pol,\/std(normalized\/O-F)\/(-)$'
+    #my_title2 = r'$std(normalized\/O-F)\/CLSM\/(-)$'
+    #mstats = list(['m = %.2f, s = %.2f' % (np.nanmean(data0), np.nanstd(data0)),
+    #               'm = %.2f, s = %.2f' % (np.nanmean(data1), np.nanstd(data1)),
+    #               'm = %.2f, s = %.2f' % (np.nanmean(data2), np.nanstd(data2)),
+    #               'm = %.2f, s = %.2f' % (np.nanmean(data3), np.nanstd(data3))
+    #               ])
+    #latmin = -15.
+    #latmax = 15.
+    #lonmin = -90.
+    #lonmax = 160.
+    #lons1 = lons
+    #lats1 = lats
+    #[data0, lons, lats, llcrnrlat, urcrnrlat, llcrnrlon, urcrnrlon] = figure_zoom(data0, lons1, lats1, latmin, latmax, lonmin, lonmax)
+    #[data1, lons, lats, llcrnrlat, urcrnrlat, llcrnrlon, urcrnrlon] = figure_zoom(data1, lons1, lats1, latmin, latmax, lonmin, lonmax)
+    #[data2, lons, lats, llcrnrlat, urcrnrlat, llcrnrlon, urcrnrlon] = figure_zoom(data2, lons1, lats1, latmin, latmax, lonmin, lonmax)
+    #data_all = list([data0, data1, data2])
+    #figure_triple_default(data=data_all, lons=lons, lats=lats, cmin=cmin, cmax=cmax, llcrnrlat=llcrnrlat,
+    #                      urcrnrlat=urcrnrlat,
+    #                      llcrnrlon=llcrnrlon, urcrnrlon=urcrnrlon, outpath=outpath, exp=exp, fname=fname,
+    #                      plot_title=([my_title0, my_title1, my_title2]), mstats=mstats, cmap='jet')
     # plot_title=(['norm_innov_std_H_Asc [(K)]', 'norm_innov_std_H_Des [(K)]', 'norm_innov_std_V_Asc [(K)]', 'norm_innov_std_V_Des [(K)]']))
 
     ############## n_valid_innov_quatro
@@ -2983,12 +3141,14 @@ def plot_filter_diagnostics(exp, domain, root, outpath):
     cmax = 0.35
     fname = 'n_valid_innov_quatro'
     data_all = list([data0, data1, data2, data3])
+    mstats = list(['m = %.2f, s = %.2f' % (np.nanmean(data0), np.nanstd(data0)),
+                   'm = %.2f, s = %.2f' % (np.nanmean(data1), np.nanstd(data1)),
+                   'm = %.2f, s = %.2f' % (np.nanmean(data2), np.nanstd(data2)),
+                   'm = %.2f, s = %.2f' % (np.nanmean(data3), np.nanstd(data3))
+                   ])
     figure_quatro_default(data_all, lons=lons, lats=lats, cmin=cmin, cmax=cmax, llcrnrlat=llcrnrlat,
-                          urcrnrlat=urcrnrlat,
-                          llcrnrlon=llcrnrlon, urcrnrlon=urcrnrlon, outpath=outpath, exp=exp, fname=fname,
-                          plot_title=(
-                              ['n_valid_innov_H_Asc', 'n_valid_innov_H_Des', 'n_valid_innov_V_Asc',
-                               'n_valid_innov_V_Des']))
+                          urcrnrlat=urcrnrlat, llcrnrlon=llcrnrlon, urcrnrlon=urcrnrlon, outpath=outpath, exp=exp, fname=fname, mstats=mstats,
+                          plot_title=(['n_valid_innov_H_Asc', 'n_valid_innov_H_Des', 'n_valid_innov_V_Asc', 'n_valid_innov_V_Des']))
 
     ########## innov mean #############
     data = ds['innov_mean'][0, :, :].values
@@ -2999,14 +3159,23 @@ def plot_filter_diagnostics(exp, domain, root, outpath):
     data2 = obs_M09_to_M36(data)
     data = ds['innov_mean'][3, :, :].values
     data3 = obs_M09_to_M36(data)
-    cmin = -3.
-    cmax = 3.
-    fname = 'innov_mean'
+    data0[poros < 0.7] = np.nan
+    data1[poros < 0.7] = np.nan
+    data2[poros < 0.7] = np.nan
+    data3[poros < 0.7] = np.nan
+    cmin = -1.
+    cmax = 1.
+    fname = 'innov_mean_peatonly'
     # my_title='innov_mean: m = %.2f, s = %.2f [mm]' % (np.nanmean(data0),np.nanstd(data0))
     data_all = list([data0, data1, data2, data3])
+    mstats = list(['m = %.2f, s = %.2f' % (np.nanmean(data0), np.nanstd(data0)),
+                   'm = %.2f, s = %.2f' % (np.nanmean(data1), np.nanstd(data1)),
+                   'm = %.2f, s = %.2f' % (np.nanmean(data2), np.nanstd(data2)),
+                   'm = %.2f, s = %.2f' % (np.nanmean(data3), np.nanstd(data3))
+                   ])
     figure_quatro_default(data=data_all, lons=lons, lats=lats, cmin=cmin, cmax=cmax, llcrnrlat=llcrnrlat,
                           urcrnrlat=urcrnrlat,
-                          llcrnrlon=llcrnrlon, urcrnrlon=urcrnrlon, outpath=outpath, exp=exp, fname=fname,
+                          llcrnrlon=llcrnrlon, urcrnrlon=urcrnrlon, outpath=outpath, exp=exp, fname=fname, mstats=mstats,
                           plot_title=(['innov_mean_H_Asc', 'innov_mean_H_Des', 'innov_mean_V_Asc', 'innov_mean_V_Des']))
 
     ########## innov std #############
@@ -3018,17 +3187,26 @@ def plot_filter_diagnostics(exp, domain, root, outpath):
     data2 = obs_M09_to_M36(data)
     data = ds['innov_var'][3, :, :].values ** 0.5
     data3 = obs_M09_to_M36(data)
+    #data0[poros < 0.7] = np.nan
+    #data1[poros < 0.7] = np.nan
+    #data2[poros < 0.7] = np.nan
+    #data3[poros < 0.7] = np.nan
     cmin = None
     cmax = None
     fname = 'innov_std'
     # my_title='innov_mean: m = %.2f, s = %.2f [mm]' % (np.nanmean(data0),np.nanstd(data0))
     data_all = list([data0, data1, data2, data3])
+    mstats = list(['m = %.2f, s = %.2f' % (np.nanmean(data0), np.nanstd(data0)),
+                   'm = %.2f, s = %.2f' % (np.nanmean(data1), np.nanstd(data1)),
+                   'm = %.2f, s = %.2f' % (np.nanmean(data2), np.nanstd(data2)),
+                   'm = %.2f, s = %.2f' % (np.nanmean(data3), np.nanstd(data3))
+                   ])
     figure_quatro_default(data=data_all, lons=lons, lats=lats, cmin=cmin, cmax=cmax, llcrnrlat=llcrnrlat,
                           urcrnrlat=urcrnrlat,
-                          llcrnrlon=llcrnrlon, urcrnrlon=urcrnrlon, outpath=outpath, exp=exp, fname=fname,
+                          llcrnrlon=llcrnrlon, urcrnrlon=urcrnrlon, outpath=outpath, exp=exp, fname=fname, mstats = mstats,
                           plot_title=(['innov_std_H_Asc', 'innov_std_H_Des', 'innov_std_V_Asc', 'innov_std_V_Des']))
 
-    ########## innov mean #############
+    ########## norm innov mean #############
     data = ds['norm_innov_mean'][0, :, :].values
     data0 = obs_M09_to_M36(data)
     data = ds['norm_innov_mean'][1, :, :].values
@@ -3037,18 +3215,25 @@ def plot_filter_diagnostics(exp, domain, root, outpath):
     data2 = obs_M09_to_M36(data)
     data = ds['norm_innov_mean'][3, :, :].values
     data3 = obs_M09_to_M36(data)
+    #data0[poros < 0.7] = np.nan
+    #data1[poros < 0.7] = np.nan
+    #data2[poros < 0.7] = np.nan
+    #data3[poros < 0.7] = np.nan
     cmin = None
     cmax = None
     fname = 'norm_innov_mean'
     # my_title='innov_mean: m = %.2f, s = %.2f [mm]' % (np.nanmean(data0),np.nanstd(data0))
     data_all = list([data0, data1, data2, data3])
+    mstats = list(['m = %.2f, s = %.2f' % (np.nanmean(data0), np.nanstd(data0)),
+                   'm = %.2f, s = %.2f' % (np.nanmean(data1), np.nanstd(data1)),
+                   'm = %.2f, s = %.2f' % (np.nanmean(data2), np.nanstd(data2)),
+                   'm = %.2f, s = %.2f' % (np.nanmean(data3), np.nanstd(data3))
+                   ])
     figure_quatro_default(data=data_all, lons=lons, lats=lats, cmin=cmin, cmax=cmax, llcrnrlat=llcrnrlat,
                           urcrnrlat=urcrnrlat,
-                          llcrnrlon=llcrnrlon, urcrnrlon=urcrnrlon, outpath=outpath, exp=exp, fname=fname,
+                          llcrnrlon=llcrnrlon, urcrnrlon=urcrnrlon, outpath=outpath, exp=exp, fname=fname, mstats = mstats,
                           plot_title=(
-                              ['norm_innov_mean_H_Asc [(K)]', 'norm_innov_mean_H_Des [(K)]',
-                               'norm_innov_mean_V_Asc [(K)]',
-                               'norm_innov_mean_V_Des [(K)]']))
+                              ['norm_innov_mean_H_Asc [(K)]', 'norm_innov_mean_H_Des [(K)]', 'norm_innov_mean_V_Asc [(K)]', 'norm_innov_mean_V_Des [(K)]']))
 
     ########## innov std #############
     data = ds['norm_innov_var'][0, :, :].values ** 0.5
@@ -3063,17 +3248,17 @@ def plot_filter_diagnostics(exp, domain, root, outpath):
     data1[poros < 0.7] = np.nan
     data2[poros < 0.7] = np.nan
     data3[poros < 0.7] = np.nan
-    cmin = 0.
-    cmax = 2.
-    fname = 'norm_innov_std'
+    cmin = 0.5
+    cmax = 1.5
+    fname = 'norm_innov_std_peatonly'
     my_title0 = 'H-pol, asc., std of norm. innov.: m = %.2f, s = %.2f [mm]' % (np.nanmean(data0), np.nanstd(data0))
     my_title1 = 'H-pol, des., std of norm. innov.: m = %.2f, s = %.2f [mm]' % (np.nanmean(data1), np.nanstd(data1))
     my_title2 = 'V-pol, asc., std of norm. innov.: m = %.2f, s = %.2f [mm]' % (np.nanmean(data2), np.nanstd(data2))
     my_title3 = 'V-pol, des., std of norm. innov.: m = %.2f, s = %.2f [mm]' % (np.nanmean(data3), np.nanstd(data3))
-    latmin = 45.
-    latmax = 70.
-    lonmin = -170.
-    lonmax = 95.
+    latmin = -15.
+    latmax = 15.
+    lonmin = -90.
+    lonmax = 160.
     lons1 = lons
     lats1 = lats
     [data0, lons, lats, llcrnrlat, urcrnrlat, llcrnrlon, urcrnrlon] = figure_zoom(data0, lons1, lats1, latmin, latmax,
@@ -3085,9 +3270,14 @@ def plot_filter_diagnostics(exp, domain, root, outpath):
     [data3, lons, lats, llcrnrlat, urcrnrlat, llcrnrlon, urcrnrlon] = figure_zoom(data3, lons1, lats1, latmin, latmax,
                                                                                   lonmin, lonmax)
     data_all = list([data0, data1, data2, data3])
+    mstats = list(['m = %.2f, s = %.2f' % (np.nanmean(data0), np.nanstd(data0)),
+                   'm = %.2f, s = %.2f' % (np.nanmean(data1), np.nanstd(data1)),
+                   'm = %.2f, s = %.2f' % (np.nanmean(data2), np.nanstd(data2)),
+                   'm = %.2f, s = %.2f' % (np.nanmean(data3), np.nanstd(data3))
+                   ])
     figure_quatro_default(data=data_all, lons=lons, lats=lats, cmin=cmin, cmax=cmax, llcrnrlat=llcrnrlat,
                           urcrnrlat=urcrnrlat,
-                          llcrnrlon=llcrnrlon, urcrnrlon=urcrnrlon, outpath=outpath, exp=exp, fname=fname,
+                          llcrnrlon=llcrnrlon, urcrnrlon=urcrnrlon, outpath=outpath, exp=exp, fname=fname, mstats =mstats,
                           plot_title=([my_title0, my_title1, my_title2, my_title3]))
     # plot_title=(['norm_innov_std_H_Asc [(K)]', 'norm_innov_std_H_Des [(K)]', 'norm_innov_std_V_Asc [(K)]', 'norm_innov_std_V_Des [(K)]']))
 
@@ -3123,6 +3313,18 @@ def plot_filter_diagnostics(exp, domain, root, outpath):
                           urcrnrlat=urcrnrlat,
                           llcrnrlon=llcrnrlon, urcrnrlon=urcrnrlon, outpath=outpath, exp=exp, fname=fname,
                           plot_title=my_title)
+
+    ########## incr std #############
+    #io = LDAS_io('incr', exp=exp, domain=domain, root=root)
+    #data = ds['incr_tws_var'].values ** 0.5
+    #cmin = 0
+    #cmax = 20
+    #fname = 'incr_tws_std'
+    #my_title = 'std(\u0394tws): m = %.2f, s = %.2f [mm]' % (np.nanmean(data), np.nanstd(data))
+    #figure_single_default(data=data, lons=lons, lats=lats, cmin=cmin, cmax=cmax, llcrnrlat=llcrnrlat,
+    #                      urcrnrlat=urcrnrlat,
+    #                      llcrnrlon=llcrnrlon, urcrnrlon=urcrnrlon, outpath=outpath, exp=exp, fname=fname,
+    #                      plot_title=my_title)
 
 
 def plot_ensstd_insitu_error(exp, domain, root, outpath):
@@ -5375,7 +5577,7 @@ def figure_quatro_default(data, lons, lats, cmin, cmax, llcrnrlat, urcrnrlat,
     fontsize = 14
     f = plt.figure(num=None, figsize=figsize, dpi=90, facecolor='w', edgecolor='k')
     for i in np.arange(0, 4):
-        cmap = 'jet'
+        cmap = 'coolwarm_r'
         if cmin == None:
             cmin = np.nanmin(data[i])
         if cmax == None:
@@ -5383,7 +5585,7 @@ def figure_quatro_default(data, lons, lats, cmin, cmax, llcrnrlat, urcrnrlat,
         if cmin < 0.0 and cmax > 0.0:
             cmax = np.max([-cmin, cmax])
             cmin = -cmax
-            cmap = 'seismic'
+            cmap = 'coolwarm_r'
         cbrange = (cmin, cmax)
         ax = plt.subplot(4, 1, i + 1)
         plt_img = np.ma.masked_invalid(data[i])
@@ -5432,11 +5634,11 @@ def figure_quatro_default(data, lons, lats, cmin, cmax, llcrnrlat, urcrnrlat,
         plt.title(plot_title[i], fontsize=fontsize)
         if np.mean(lats) > 40:
             matplotlib.pyplot.text(1.0, 1.0, mstats[i], horizontalalignment='right', verticalalignment='bottom',
-                                   transform=ax.transAxes, fontsize=fontsize)
+                                   transform=ax.transAxes, fontsize=fontsize-2)
         else:
-            matplotlib.pyplot.text(1.0, 0.2, mstats[i], bbox=dict(facecolor='white', alpha=1.0),
+            matplotlib.pyplot.text(1.0, 0.07, mstats[i], bbox=dict(facecolor='white', alpha=1.0),
                                    horizontalalignment='right', verticalalignment='bottom', transform=ax.transAxes,
-                                   fontsize=fontsize)
+                                   fontsize=fontsize-2)
     fname_long = os.path.join(outpath, fname + '.png')
     plt.tight_layout()
     plt.savefig(fname_long, dpi=f.dpi)

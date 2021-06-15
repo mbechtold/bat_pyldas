@@ -859,7 +859,8 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
             else:
                 logging.warning("some files, maybe swp files, exist that start with master table searchstring !")
 
-    io = LDAS_io('daily', exp=exp, domain=domain, root=root)
+
+    io = LDAS_io('daily', exp, domain, root)
     [lons, lats, llcrnrlat, urcrnrlat, llcrnrlon, urcrnrlon] = setup_grid_grid_for_plot(io)
 
     catparam = io.read_params('catparam')
@@ -876,7 +877,7 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
             continue
 
  #sebastian added       #to select only the drained of only the natural ones to calculate skill metrics!
-        if master_table['drained_U=uncertain'][i] == 'N':
+        if master_table['drained_U=uncertain'][i] == 'D':
             continue
 
         #if master_table['drained_U=uncertain'][i] == 'U':
@@ -906,7 +907,7 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
             print(site_ID + " not on a peatland grid cell.")
             continue
 
-        folder_p = insitu_path + '/Rainfall/'
+        folder_p = insitu_path + '/tropics/Rainfall/'
 
         try:
             if isinstance(find_files(insitu_path, site_ID), str):
@@ -973,7 +974,7 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
                 precip_obs = precip_obs.set_index('time')
             except:
                 precip_obs = wtd_obs.copy()
-                precip_obs[:] = -9999
+                precip_obs[:] = -10
 
             # Load model wtd data.
             wtd_mod = io.read_ts('zbar', lon, lat, lonlat=True)
@@ -1030,7 +1031,7 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
                     try:
                         wtd_obs_tmp['time'] = pd.to_datetime(wtd_obs_tmp['time'], format='%d/%m/%Y')
                     except:
-                        wtd_obs_tmp['time'] = pd.to_datetime(wtd_obs_tmp['time'], format='%m/%d/%Y')
+                        wtd_obs_tmp['time'] = pd.to_datetime(wtd_obs_tmp['time'], format='%m/%d/%Y', errors='ignore')
                 else:
                     wtd_obs_tmp['time'] = pd.to_datetime(wtd_obs_tmp['time'])
             else:
@@ -1049,7 +1050,7 @@ def read_wtd_data(insitu_path, mastertable_filename, exp, domain, root):
                 precip_obs_tmp = precip_obs_tmp.set_index('time')
             except:
                 precip_obs_tmp = wtd_obs_tmp.copy()
-                precip_obs_tmp[:] = -9999
+                precip_obs_tmp[:] = -10
 
             # temporarly added this to go around an error
             # precip_obs_tmp[site_ID] = -1
